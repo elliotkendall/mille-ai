@@ -161,7 +161,10 @@ class Game:
         print currentPlayer,
         print move
 
-      self.notifyPlayers(currentPlayer, move)
+      sanitizedPlayer = copy(currentPlayer)
+      sanitizedPlayer.hand = []
+      sanitizedPlayer.ai = None
+      self.notifyPlayers(sanitizedPlayer, move)
 
       # Handle moves
       if move.type == Move.PLAY:
