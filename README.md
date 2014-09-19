@@ -5,8 +5,8 @@ Mille Borne so that actual people will be saved from having to.
 
 ## Rules ##
 
-You will submit a file called <yourname>ai.py, which includes a class called
-<YourName> that implements the AI interface (see Technical Details, The AI
+You will submit a file called &lt;yourname&gt;ai.py, which includes a class called
+&lt;YourName&gt; that implements the AI interface (see Technical Details, The AI
 Interface).  You may also submit any other support file(s) you like,
 including other classes, etc.  The combined files you submit should be a
 reasonable size.  I reserve the right to decide what "reasonable" means.
@@ -40,7 +40,7 @@ Rename mille/yournameai.py to use your actual name. In the file, change
 "class YourNameAI" to use your actual name.  This class is a copy of the
 BasicAI class from sampleais.py - see Technical Details, Sample AIs.
 
-Edit play.py and change the competitors variable to include <YourName>AI.
+Edit play.py and change the competitors variable to include &lt;YourName&gt;AI.
 For example, mine would look like:
 
 ```python
@@ -87,24 +87,24 @@ course.
 Your AI should be a python class implementing the interface defined in
 *mille/ai.py*. The interface has four methods:
 
-* *makeMove(gameState)*
+* **makeMove(gameState)**
     Decide what to do on your turn. Returns a Move object, which can either
     be newly created or one of the ones provides in gameState.validMoves -
     see below for more information about GameState and Move objects. 
     Returning an invalid move will result in discarding the first card in
     your hand.
 
-* *playerPlayed(player, move)*
+* **playerPlayed(player, move)**
     Called whenever a player makes a move, including yourself. Return value
     is ignored.  See below for more information about Player objects.
 
-* *playCoupFourre(attackCard, gameState)*
+* **playCoupFourre(attackCard, gameState)**
     Decide whether or not to coup fourre an attack card being played on your
     team.  Returns True or False.  This will only be called if you legally
     *can* play a coup fourre, so it's quite reasonable just to return True
     all the time.
 
-* *goForExtension(gameState)*
+* **goForExtension(gameState)**
     Decide whether or not to go for the extension. Returns True or False. 
     Will be called when you play the last mileage card necessary to reach
     700 miles in a three-team game.
@@ -114,12 +114,12 @@ Your AI should be a python class implementing the interface defined in
 The sampleais.py file includes several sample AIs to use when developing
 your own.
 
-BasicAI plays a passable game despite being very simple. 
+**BasicAI** plays a passable game despite being very simple. 
 
-ManualAI asks the person at the keyboard to make moves, and so lets you play
+**ManualAI** asks the person at the keyboard to make moves, and so lets you play
 against other AIs.
 
-JonsAI implements Jon's master Mille Bornes strategy: If you have a 25,
+**JonsAwesomeAI** implements Jon's master Mille Bornes strategy: If you have a 25,
 discard it.  Otherwise, discard another card.
 
 ### The Cards Class ###
@@ -131,32 +131,32 @@ card) or Cards.cardsToStrings (for a list of cards).
 There are various other static methods in the class that may be useful to AI
 developers:
 
-* *cardToMileage(card)*
+* **cardToMileage(card)**
     Returns the integer number of miles for a given mileage card. For
     MILEAGE_25, for example, it would return 25.
 
-* *cardToString(card)*
+* **cardToString(card)**
     Returns a human-readable string describing the card. For MILEAGE_25, for
     example, it would return "25 Miles".
 
-* *cardsToString(cards)*
+* **cardsToString(cards)**
     Returns a list of human-readable strings describing each card in the
     list.  For [MILEAGE_25], for example, it would return ["25 Miles"].
 
-* *cardToType(card)*
+* **cardToType(card)**
     Returns a constant describing the type of card - MILEAGE, REMEDY,
     ATTACK, or SAFETY.  These constants are defined in the Cards class as
     well.
 
-* *attackToRemedy(card)*
+* **attackToRemedy(card)**
     Returns the remedy card that matches a given attack card. For
     ATTACK_STOP, for example, it would return REMEDY_GO.
 
-* *attackToSafety(card)*
+* **attackToSafety(card)**
     Returns the safety card that matches a given attack card. For
     ATTACK_STOP, for example, it would return SAFETY_RIGHT_OF_WAY.
 
-* *remedyToSafety(card)*
+* **remedyToSafety(card)**
     Returns the safety card that matches a given remedy card. For REMEDY_GO,
     for example, it would return SAFETY_RIGHT_OF_WAY.
 
@@ -166,29 +166,29 @@ Each of the above methods will be passed a GameState object, which includes
 all the information about the current state of the game that you need to
 make a decision.  Its attributes are:
 
-* *hand*
+* **hand**
     A list of cards in your hand.
 
-* *discardPile*
+* **discardPile**
     A list of the cards in the discard pile. The most recently discarded is
     at the end of the list.
 
-* *us*
+* **us**
     A Team object representing your team. See below for more information
     on Team objects.
 
-* *opponents*
+* **opponents**
     A dictionary of team number => Team object representing the opposing
     teams.  Your own team is not included.  See below for more information
     on Team objects.
 
-* *validMoves*
+* **validMoves**
     A list of Move objects representing all of the legal moves available to
     you.  Only populated when passed to makeMove(), but if you really want
     it populated at other times you can call findValidPlays() on the
     GameState object yourself.
 
-* *target*
+* **target**
     The current mileage target for the race. Will be either 700 or 1000
     depending on the number of players and whether anyone has chosen to go
     for the extension.
@@ -197,54 +197,54 @@ make a decision.  Its attributes are:
 
 Describes a team, either your own or an opponents. Its attributes are:
 
-* *players*
+* **players**
     A list of player numbers in the team.
 
-* *totalScore*
+* **totalScore**
     The team's score over multiple hands.
 
-* *handScore*
+* **handScore**
     The team's score this hand. Not calculated until the end of the hand, so
     probably not interesting for AI developers.
 
-* *mileage*
+* **mileage**
     How many miles the team has gone this hand.
 
-* *mileagePile*
+* **mileagePile**
     A list representing the "mileage pile," which contains all mileage cards
     the team has played this hand.
 
-* *speedPile*
+* **speedPile**
     A list representing the "speed pile," which contains all Speed Limit
     cards played against the team and End of Limit cards played by the team
     during this hand.
 
-* *battlePile*
+* **battlePile**
     A list representing the "battle pile," which contains all non-Speed
     Limit attack cards played against the team and non-End of Limit remedy
     cards played by the team during this hand.
 
-* *safeties*
+* **safeties**
     A list of the safeties this team has played this hand.
 
-* *coupFourres*
+* **coupFourres**
     The number of coup fourres this team has played this hand.
 
-* *moving*
+* **moving**
     A boolean. Is this team moving?
 
-* *speedLimit*
+* **speedLimit**
     A boolean. Is this team under a speed limit?
 
-* *needRemedy*
+* **needRemedy**
     Which remedy card the team needs to move. Will be None if they're
     moving.
 
-* *safeTrip*
+* **safeTrip**
     Has the team played any 200 mile cards this hand? Used in hand-end
     scoring.
 
-* *twoHundredsPlayed*
+* **twoHundredsPlayed**
     The number of 200 mile cards the team has played this hand. Teams
     are only allowed two per hand.
 
@@ -269,16 +269,16 @@ move3 = Move(Move.PLAY, Cards.ATTACK_STOP, 0)
 
 Represents a player. Its attributes are:
 
-* *hand*
+* **number**
+    The player number.
+
+* **teamNumber**
+    The number of the team the player is on.
+
+* **hand**
     The cards in the player's hand. This will always be empty when it's
     passed to you.
 
-* *ai*
+* **ai**
     The AI object controlling the player. This will always be None when it's
     passed to you.
-
-* *number*
-    The player number.
-
-* *teamNumber*
-    The number of the team the player is on.
