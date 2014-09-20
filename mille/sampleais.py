@@ -67,7 +67,13 @@ class ManualAI(AI):
     for i in range(len(gameState.validMoves)):
       print str(i) + ':',
       print gameState.validMoves[i]
-    move = raw_input('Enter move index: ')
+    moveint = -1
+    while moveint not in range(len(gameState.validMoves)):
+      move = raw_input('Enter move index: ')
+      try:
+        moveint = int(move)
+      except ValueError:
+        moveint = -1
     return gameState.validMoves[int(move)]
 
   def playerPlayed(self, player, move):
