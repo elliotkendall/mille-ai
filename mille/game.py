@@ -50,7 +50,7 @@ class Game:
   # Prepare this object for a new game
   def reset(self):
     self.discardPile = []
-    if len(self.teams) == 3:
+    if len(self.players) == 4:
       self.target = 1000
       self.extensionPossible = False
     else:
