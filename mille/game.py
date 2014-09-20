@@ -337,11 +337,13 @@ class Game:
     state = GameState()
     # Pass copies, not the original objects, so the canonical ones can't
     # "accidentally" get modified by the AIs
-    state.target = self.target # Passed by value, doesn't need copying
     state.hand = copy(player.hand)
     state.discardPile = copy(self.discardPile)
     state.us = copy(self.teams[player.teamNumber])
     state.opponents = copy(self.teams)
     state.opponents = deepcopy(self.teams)
     del state.opponents[(player.teamNumber)]
+    # Passed by value, doesn't need copying
+    state.target = self.target
+    state.cardsLeft = self.deck.cardsLeft()
     return state

@@ -41,3 +41,6 @@ class Deck:
     for i in range(count):
       ret.append(self.deck.pop())
     return ret
+
+  def cardsLeft(self):
+    return len(self.deck)
