@@ -7,4 +7,9 @@ class Player:
     self.ai = None
 
   def __str__(self):
-    return str(self.ai) + ', player ' + str(self.number) + ' (team ' + str(self.teamNumber) + ')'
+    if self.ai is None:
+      ret = 'Player '
+    else:
+      ret = str(self.ai) + ', player '
+    ret += str(self.number) + ' (team ' + str(self.teamNumber) + ')'
+    return ret
