@@ -237,7 +237,10 @@ class Game:
             if self.debug:
               print self.players[nextPlayerNumber],
               print cfMove
-            self.notifyPlayers(nextPlayerNumber, cfMove)
+            cfPlayer = copy(self.players[nextPlayerNumber])
+            cfPlayer.hand = []
+            cfPlayer.ai = None
+            self.notifyPlayers(cfPlayer, cfMove)
         elif type == Cards.SAFETY:
           self.playSafety(currentTeam, card)
           nextPlayerNumber = currentPlayerNumber
