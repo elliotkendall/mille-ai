@@ -193,6 +193,9 @@ make a decision.  Its attributes are:
     depending on the number of players and whether anyone has chosen to go
     for the extension.
 
+* **cardsLeft**
+    The number of cards left in the deck.
+
 ### Team Objects ###
 
 Describes a team, either your own or an opponents. Its attributes are:
