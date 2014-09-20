@@ -60,6 +60,7 @@ class ManualAI(AI):
     print 'Us:'
     print gameState.us
     print 'Cards left in deck: ' + str(gameState.cardsLeft)
+    print 'Target: ' + str(gameState.target) + ' miles'
     print 'Your hand: ',
     print Cards.cardsToStrings(gameState.hand)
     print 'Valid moves:'
