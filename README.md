@@ -85,7 +85,7 @@ course.
 ### The AI Interface ###
 
 Your AI should be a python class implementing the interface defined in
-*mille/ai.py*. The interface has four methods:
+*mille/ai.py*. The interface has these methods:
 
 * **makeMove(gameState)**
     Decide what to do on your turn. Returns a Move object, which can either
@@ -97,6 +97,12 @@ Your AI should be a python class implementing the interface defined in
 * **playerPlayed(player, move)**
     Called whenever a player makes a move, including yourself. Return value
     is ignored.  See below for more information about Player objects.
+
+* **handEnded(scoreSummary)**
+    Called when a hand is complete. The score summary is just a big
+    multi-line text string suitable to be printed for human consuption. 
+    Unless you want to do some end-of-hand processing in your AI, you
+    probably don't need to implement this.
 
 * **playCoupFourre(attackCard, gameState)**
     Decide whether or not to coup fourre an attack card being played on your

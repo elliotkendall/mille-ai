@@ -79,6 +79,10 @@ class ManualAI(AI):
   def playerPlayed(self, player, move):
     print player,
     print move
+
+  def handEnded(self, scoreSummary):
+    print "Hand complete!\n"
+    print scoreSummary
   
   def playCoupFourre(self, attackCard, gameState):
     coupFourre = raw_input('Play coup fourre (y/n)? [y]: ')

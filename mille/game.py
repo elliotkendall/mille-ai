@@ -274,47 +274,43 @@ class Game:
         teamsWithMileage += 1
     
     # Now actually figure scores
+    scoreSummary = ''
     for team in self.teams:
-      if self.debug:
-        print 'Team ' + str(team.number)
+      scoreSummary += 'Team ' + str(team.number) + "\n"
       team.handScore = team.mileage
-      if self.debug:
-        print '  ' + str(team.mileage) + ' miles'
+      scoreSummary += '  ' + str(team.mileage) + " miles\n"
       team.handScore += 100 * len(team.safeties)
-      if self.debug:
-        print '  ' + str(len(team.safeties)) + ' safeties = ' + str(100 * len(team.safeties))
+      scoreSummary += '  ' + str(len(team.safeties)) + ' safeties = ' + str(100 * len(team.safeties)) + "\n"
       team.handScore += 300 * team.coupFourres
-      if self.debug:
-        print '  ' + str(team.coupFourres) + ' coup fourres = ' + str(300 * team.coupFourres)
+      scoreSummary += '  ' + str(team.coupFourres) + ' coup fourres = ' + str(300 * team.coupFourres) + "\n"
       if len(team.safeties) == 4:
-        if self.debug:
-          print '  All four safeties = 500'
+        scoreSummary += "  All four safeties = 500\n"
         team.handScore += 700
 
       if self.winner == team.number:
         team.handScore += 400
-        if self.debug:
-          print '  Trip complete = 400'
+        scoreSummary += "  Trip complete = 400\n"
         if self.delayedAction:
-          if self.debug:
-            print '  Delayed action = 300'
+          scoreSummary += "  Delayed action = 300\n"
           team.handScore += 300
         if team.safeTrip:
-          if self.debug:
-            print '  Safe trip = 300'
+          scoreSummary += "  Safe trip = 300\n"
           team.handScore += 300
         if self.extension:
-          if self.debug:
-            print '  Extension = 200'
+          scoreSummary += "  Extension = 200\n"
           team.handScore += 200
         if teamsWithMileage == 1:
           team.handScore += 500
-          if self.debug:
-            print '  Shut out = 500'
-      if self.debug:
-        print '  Total: ' + str(team.handScore)
+          scoreSummary += "  Shut out = 500\n"
+      scoreSummary += '  Total: ' + str(team.handScore) + "\n"
       team.totalScore += team.handScore
 
+    if self.debug:
+      print scoreSummary
+
+    # Notify the players that the hand is over
+    for player in self.players:
+      player.ai.handEnded(scoreSummary)
 
   def notifyPlayers(self, movingPlayer, move):
     for player in self.players:

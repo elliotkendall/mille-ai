@@ -8,6 +8,9 @@ class AI:
   def playerPlayed(self, player, move):
     pass
 
+  def handEnded(self, scoreSummary):
+    pass
+
   # Play a coup fourre?
   def playCoupFourre(self, attackCard, gameState):
     pass
