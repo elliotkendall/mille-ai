@@ -124,7 +124,7 @@ class Game:
 
       try:
         currentPlayer.hand.append(self.deck.draw())
-      except:
+      except IndexError:
         self.delayedAction = True
 
       if self.debug:
@@ -231,7 +231,10 @@ class Game:
             # Remove the safety from the player's hand
             del self.players[coupFourrePlayerNumber].hand[self.players[coupFourrePlayerNumber].hand.index(neededSafety)]
             # Draw an extra card to replace the one just played
-            self.players[coupFourrePlayerNumber].hand.append(self.deck.draw())
+            try:
+              self.players[coupFourrePlayerNumber].hand.append(self.deck.draw())
+            except IndexError:
+              pass
             targetTeam.coupFourres += 1
             cfMove = Move(Move.PLAY, neededSafety, None, True)
             if self.debug:
