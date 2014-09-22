@@ -49,14 +49,6 @@ class Game:
 
   # Prepare this object for a new game
   def reset(self):
-    self.discardPile = []
-    if len(self.players) == 4:
-      self.target = 1000
-      self.extensionPossible = False
-    else:
-      self.target = 700
-      self.extensionPossible = True
-
     for team in self.teams:
       team.totalScore = 0
   
@@ -96,11 +88,17 @@ class Game:
 
   # Play a single hand
   def playHand(self):
-    # Scoring attributes
     self.winner = -1
     self.tripComplete = False
     self.delayedAction = False
     self.extension = False
+    self.discardPile = []
+    if len(self.players) == 4:
+      self.target = 1000
+      self.extensionPossible = False
+    else:
+      self.target = 700
+      self.extensionPossible = True
 
     # Fresh deck
     self.deck = Deck()
