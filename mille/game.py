@@ -324,7 +324,8 @@ class Game:
     if card == Cards.SAFETY_RIGHT_OF_WAY:
       team.speedLimit = False
     if Cards.remedyToSafety(team.needRemedy) == card:
-      if card == Cards.SAFETY_RIGHT_OF_WAY:
+      if (card == Cards.SAFETY_RIGHT_OF_WAY
+       or Cards.SAFETY_RIGHT_OF_WAY in team.safeties):
         team.needRemedy = None
         team.moving = True
       else:
