@@ -206,7 +206,7 @@ make a decision.  Its attributes are:
 
 Describes a team, either your own or an opponents. Its attributes are:
 
-* **players**
+* **playerNumbers**
     A list of player numbers in the team.
 
 * **totalScore**
