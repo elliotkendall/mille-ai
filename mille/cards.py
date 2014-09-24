@@ -120,14 +120,16 @@ class Cards:
     elif card == c.REMEDY_GO or card == c.REMEDY_END_OF_LIMIT:
       return c.SAFETY_RIGHT_OF_WAY
 
-  # What safety blocks this attack?
+  # What attack does this remedy fix?
   @classmethod
-  def attackToSafety(c, card):
-    if card == c.ATTACK_FLAT_TIRE:
-      return c.SAFETY_PUNCTURE_PROOF
-    elif card == c.ATTACK_OUT_OF_GAS:
-      return c.SAFETY_EXTRA_TANK
-    elif card == c.ATTACK_ACCIDENT:
-      return c.SAFETY_DRIVING_ACE
-    elif card == c.ATTACK_STOP or card == c.ATTACK_SPEED_LIMIT:
-      return c.SAFETY_RIGHT_OF_WAY
+  def remedyToAttack(c, card):
+    if card == c.REMEDY_SPARE_TIRE:
+      return c.ATTACK_FLAT_TIRE
+    elif card == c.REMEDY_GASOLINE:
+      return c.ATTACK_OUT_OF_GAS
+    elif card == c.REMEDY_REPAIRS:
+      return c.ATTACK_ACCIDENT
+    elif card == c.REMEDY_GO:
+      return c.ATTACK_STOP
+    elif card == c.REMEDY_END_OF_LIMIT:
+      return c.ATTACK_SPEED_LIMIT
