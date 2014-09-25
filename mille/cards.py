@@ -94,6 +94,8 @@ class Cards:
       return c.REMEDY_REPAIRS
     elif card == c.ATTACK_STOP:
       return c.REMEDY_GO
+    elif card == c.ATTACK_SPEED_LIMIT:
+      return c.REMEDY_END_OF_LIMIT
     raise ValueError('Unknown attack card')
 
   # What safety prevents this attack?
