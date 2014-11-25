@@ -12,6 +12,9 @@ class Move:
     self.target = target
     self.coupFourre = coupFourre
 
+  def __hash__(self):
+    return hash((self.type, self.card, self.target))
+
   @classmethod
   def typeToString(c, type):
     if type == c.DISCARD:
