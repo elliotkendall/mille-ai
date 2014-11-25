@@ -7,23 +7,27 @@ class Cards:
   MILEAGE_75 = 2
   MILEAGE_100 = 3
   MILEAGE_200 = 4
+  MILEAGE_CARDS = [0, 1, 2, 3, 4]
 
   REMEDY_SPARE_TIRE = 5
   REMEDY_GASOLINE = 6
   REMEDY_REPAIRS = 7
   REMEDY_GO = 8
   REMEDY_END_OF_LIMIT = 9
+  REMEDIES = [5, 6, 7, 8, 9]
 
   ATTACK_FLAT_TIRE = 10
   ATTACK_OUT_OF_GAS = 11
   ATTACK_ACCIDENT = 12
   ATTACK_STOP = 13
   ATTACK_SPEED_LIMIT = 14
+  ATTACKS = [10, 11, 12, 13, 14]
   
   SAFETY_PUNCTURE_PROOF = 15
   SAFETY_EXTRA_TANK = 16
   SAFETY_DRIVING_ACE = 17
   SAFETY_RIGHT_OF_WAY = 18
+  SAFETIES = [15, 16, 17, 18]
 
   MILEAGE = 0
   REMEDY = 1
@@ -74,13 +78,13 @@ class Cards:
   # What kind of card is this?
   @classmethod
   def cardToType(c, card):
-    if card in range(0, 5):
+    if card in c.MILEAGE_CARDS:
       return c.MILEAGE
-    elif card in range(5, 10):
+    elif card in c.REMEDIES:
       return c.REMEDY
-    elif card in range(10, 15):
+    elif card in c.ATTACKS:
       return c.ATTACK
-    elif card in range(15, 19):
+    elif card in c.SAFETIES:
       return c.SAFETY
 
   # What remedy resolves this attack?
@@ -109,6 +113,18 @@ class Cards:
       return c.SAFETY_DRIVING_ACE
     elif card == c.ATTACK_STOP or card == c.ATTACK_SPEED_LIMIT:
       return c.SAFETY_RIGHT_OF_WAY
+
+  # What attack(s) does this safety prevent?
+  @classmethod
+  def safetyToAttacks(c, card):
+    if card == c.SAFETY_PUNCTURE_PROOF:
+      return [c.ATTACK_FLAT_TIRE]
+    elif card == c.SAFETY_EXTRA_TANK:
+      return [c.ATTACK_OUT_OF_GAS]
+    elif card == c.SAFETY_DRIVING_ACE:
+      return [c.ATTACK_ACCIDENT]
+    elif card == c.SAFETY_RIGHT_OF_WAY:
+      return [c.ATTACK_STOP, c.ATTACK_SPEED_LIMIT]
 
   # What safety provides this benefit?
   @classmethod
