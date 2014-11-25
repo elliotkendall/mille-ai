@@ -15,6 +15,7 @@ class GameState:
     self.validMoves = []
     self.target = 0
     self.cardsLeft = -1
+    self.debug = False
 
   # Populate our validMoves attribute based on our other information.
   # This should probably be in the Game class instead...

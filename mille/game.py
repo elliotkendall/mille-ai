@@ -336,6 +336,7 @@ class Game:
   # information about other players
   def makeState(self, player):
     state = GameState()
+    state.debug = self.debug
     # Pass copies, not the original objects, so the canonical ones can't
     # "accidentally" get modified by the AIs
     state.hand = copy(player.hand)
