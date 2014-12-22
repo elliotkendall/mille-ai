@@ -42,7 +42,7 @@ BasicAI class from sampleais.py - see Technical Details, Sample AIs.
 
 Edit play.py and import your class; near the top, above the line
 ``from mille.sampleais import *`` add
-``from mille.&lt;yourname&gt;ai import &lt;YourName&gt;AI``
+``from mille.yournameai import YourNameAI``
 
 Then, change the competitors variable to include &lt;YourName&gt;AI.
 For example, mine would look like:
