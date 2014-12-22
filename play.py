@@ -9,7 +9,7 @@ from mille.cards import Cards
 
 competitors = [MatthewgAI, BasicAI]
 numPlayers = 2
-games = 1
+games = 100
 debug = False
 
 # End configurable parameters
