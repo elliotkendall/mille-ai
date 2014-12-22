@@ -184,7 +184,7 @@ make a decision.  Its attributes are:
     on Team objects.
 
 * **opponents**
-    A dictionary of team number => Team object representing the opposing
+    A list of Team object representing the opposing
     teams.  Your own team is not included.  See below for more information
     on Team objects.
 
@@ -202,9 +202,22 @@ make a decision.  Its attributes are:
 * **cardsLeft**
     The number of cards left in the deck.
 
+It also has these methods:
+
+* **findValidPlays**
+    Updates the object's ``validMoves`` attribute.
+
+* **teamNumberToTeam(teamNumber)**
+    Given a team number of one of your opponents, returns the corresponding
+    ``Team`` object.  Use this to get the ``Team`` for the target of an
+    attack ``Move``.
+
 ### Team Objects ###
 
 Describes a team, either your own or an opponents. Its attributes are:
+
+* **number**
+    The team number of this team.a
 
 * **playerNumbers**
     A list of player numbers in the team.
@@ -259,10 +272,11 @@ Describes a team, either your own or an opponents. Its attributes are:
 
 ### Move Objects ###
 
-A simple object describing a move: whether it's a discard or a play, which
-card it is, and (for attacks) which team it's targetted at.  The constructor
-takes all of those attributes as parameters.  Discard versus play is
-expressed as a constant defined in this class, either DISCARD or PLAY.
+A simple object describing a move: whether it's a discard or a play,
+which card it is, and (for attacks) the number of the team it's
+targetted at.  The constructor takes all of those attributes as
+parameters.  Discard versus play is expressed as a constant defined in
+this class, either DISCARD or PLAY.
 
 For example:
 
