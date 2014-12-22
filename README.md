@@ -40,10 +40,16 @@ Rename mille/yournameai.py to use your actual name. In the file, change
 "class YourNameAI" to use your actual name.  This class is a copy of the
 BasicAI class from sampleais.py - see Technical Details, Sample AIs.
 
-Edit play.py and change the competitors variable to include &lt;YourName&gt;AI.
+Edit play.py and import your class; near the top, above the line
+``from mille.sampleais import *`` add
+``from mille.yournameai import YourNameAI``
+
+Then, change the competitors variable to include &lt;YourName&gt;AI.
 For example, mine would look like:
 
 ```python
+from mille.elliotai import ElliotAI
+[...]
 competitors = [ElliotAI, ManualAI]
 ```
 
