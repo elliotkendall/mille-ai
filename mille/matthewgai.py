@@ -49,10 +49,10 @@ class MatthewgAI(AI):
     # Attack whoever's furthest ahead, unless they're already impaired.
     # TODO: Also factor in who's beaten us in past games.
     # TODO: Also factor in likelihood that they might have coup fourre available.
-    attacks.sort(key=lambda move: gameState.opponents[move.target].mileage, reverse=True)
+    attacks.sort(key=lambda move: gameState.teamNumberToTeam(move.target).mileage, reverse=True)
     if len(attacks) > 0:
       for attack in attacks:
-        target = gameState.opponents[attack.target]
+        target = gameState.teamNumberToTeam(attack.target)
         if attack.card == Cards.ATTACK_SPEED_LIMIT:
           # If they're already under a speed limit, don't bother with another.
           if target.speedLimit:
@@ -105,8 +105,7 @@ class MatthewgAI(AI):
       countCardsForList(team.safeties)
     countCardsForTeam(gameState.us)
     for opponent in gameState.opponents:
-      if opponent:
-        countCardsForTeam(opponent)
+      countCardsForTeam(opponent)
     return cardsPossiblyRemaining
 
   def cardValue(self, card, cardIdx, cards, gameState, cardsPossiblyRemaining):
@@ -161,13 +160,11 @@ class MatthewgAI(AI):
             return 0
         return 9
     elif cardType == Cards.ATTACK:
-      totalOpponents = len(gameState.opponents) - 1
+      totalOpponents = len(gameState.opponents)
       vulnerableOpponents = totalOpponents
       neededSafety = Cards.attackToSafety(card)
       for opponent in gameState.opponents:
-        if opponent is None:
-          continue
-        elif neededSafety in opponent.safeties:
+        if neededSafety in opponent.safeties:
           vulnerableOpponents -= 1
       return 6 * (vulnerableOpponents / totalOpponents)
     else:
