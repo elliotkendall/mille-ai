@@ -361,7 +361,7 @@ class Game:
     state.teams = deepcopy(self.teams)
     state.us = copy(self.teams[player.teamNumber])
     state.opponents = deepcopy(self.teams)
-    del state.opponents[(player.teamNumber)]
+    state.opponents[player.teamNumber] = None
     # Passed by value, doesn't need copying
     state.target = self.target
     state.cardsLeft = self.deck.cardsLeft()

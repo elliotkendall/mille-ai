@@ -191,7 +191,7 @@ make a decision.  Its attributes are:
 
 * **opponents**
     A list of Team object representing the opposing
-    teams.  Your own team is not included.  See below for more information
+    teams.  Your own team is replaced with ``None``.  See below for more information
     on Team objects.
 
 * **validMoves**
