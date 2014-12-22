@@ -40,9 +40,6 @@ class GameState:
         self.validMoves.append(Move(Move.PLAY, card))
       elif type == Cards.ATTACK:
         for opponent in self.opponents:
-          if opponent is None:
-            continue
-
           if card == Cards.ATTACK_SPEED_LIMIT:
             if ((not opponent.speedLimit)
              and Cards.SAFETY_RIGHT_OF_WAY not in opponent.safeties):
