@@ -190,7 +190,7 @@ make a decision.  Its attributes are:
     on Team objects.
 
 * **opponents**
-    A dictionary of team number => Team object representing the opposing
+    A list of Team object representing the opposing
     teams.  Your own team is not included.  See below for more information
     on Team objects.
 
