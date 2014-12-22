@@ -11,11 +11,17 @@ class GameState:
     self.hand = []
     self.discardPile = []
     self.us = None
-    self.opponents = {}
+    self.opponents = []
     self.validMoves = []
     self.target = 0
     self.cardsLeft = -1
     self.debug = False
+
+  def teamNumberToTeam(self, teamNumber):
+    for opponent in self.opponents:
+      if opponent.number == teamNumber:
+        return opponent
+    raise KeyError(teamNumber)
 
   # Populate our validMoves attribute based on our other information.
   # This should probably be in the Game class instead...
