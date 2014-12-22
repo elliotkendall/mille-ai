@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 from sys import exit
+from mille.matthewgai import MatthewgAI
 from mille.sampleais import *
 from mille.game import Game
 from mille.cards import Cards
 
 # Begin configurable parameters
 
-competitors = [BasicAI, ManualAI]
+competitors = [MatthewgAI, BasicAI]
 numPlayers = 2
 games = 1
 debug = False
