@@ -1,5 +1,21 @@
 """
 matthewg@zevils.com 's entry in the Mille Bornes AI competition.
+
+TODOs from the web:
+* Tweak discard strategy.
+* "Safe trip" bonus for no 200s.
+* Factor in number of points left in game, not just miles left in hand.
+* Extension strategy: Factor in how many hazards and remedies in hand,
+  mileage cards left in deck, mileage of opponents, points left in game.
+  (Also, safeties that opponents have out.)
+* Don't horde for CF as aggressively.  Want the bonus for getting safeties out.
+* Delay ending game to get out safeties, run out the deck?
+* Prioritize Go over attack?
+* Use card counting: If all of an attack are out, discard the remedy.
+* Save low-mileage cards for endgame.
+* Watch opponent discards: If they discard remedies, they probably have the safety.
+* There's only one of each safety, so if one opponent has it, nobody else will.
+
 """
 from __future__ import division  # / == float, // == int
 
