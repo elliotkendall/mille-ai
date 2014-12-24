@@ -44,7 +44,6 @@ class MatthewgAI(AI):
     self.numCardsUnseen -= 1
 
   def playerPlayed(self, player, move):
-    # NB: Contrary to the documentation, this is also called when *we* make a move.
     self.cardSeen(move.card)
 
   def cardDrawn(self, card):
@@ -122,7 +121,7 @@ class MatthewgAI(AI):
       return safeties[0]
     
     # Discard the least valuable card.
-    discardCards = (discard.card for discard in discards)
+    discardCards = tuple(discard.card for discard in discards)
     cardValues = dict((discards[discardIdx],
                        self.cardValue(discards[discardIdx].card,
                                       discardIdx,
@@ -193,7 +192,7 @@ class MatthewgAI(AI):
           
         return max(1, 4 - duplicateRemedies) * (
           # The more likely this attack is to come up, the more valuable the remedy is.
-          self.cardsUnseen[attack] / self.numCardsUnseen)
+          self.cardsUnseen[attack] / max(self.numCardsUnseen, 1))
     elif cardType == Cards.SAFETY:
       if card in gameState.us.safeties:
         return 0
@@ -223,7 +222,7 @@ class MatthewgAI(AI):
         # The more likely there is to be protection against this attack,
         # the less valuable the attack is.
         1-((self.cardsUnseen[safety] +
-            self.cardsUnseen[remedy]) / self.numCardsUnseen))
+            self.cardsUnseen[remedy]) / max(self.numCardsUnseen, 1)))
     else:
       raise Exception("Unknown card type for %r: %r" % (card, cardType))
 
