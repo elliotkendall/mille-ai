@@ -121,6 +121,11 @@ class Game:
     # Deal hands
     for player in self.players:
       player.hand = self.draw(player, 6)
+      player.hand = self.deck.draw(player, 6)
+
+    # Reset per-hand team variables
+    for team in self.teams:
+      team.reset()
 
     currentPlayerNumber = 0
     # Normally this is currentPlayerNumber + 1, but in the case of a coup
@@ -132,7 +137,7 @@ class Game:
       currentTeam = self.teams[currentPlayer.teamNumber]
 
       try:
-        currentPlayer.hand.append(self.draw(currentPlayer))
+        currentPlayer.hand.append(self.deck.draw(currentPlayer))
       except IndexError:
         self.delayedAction = True
 
@@ -242,7 +247,7 @@ class Game:
             # Draw an extra card to replace the one just played
             try:
               player = self.players[coupFourrePlayerNumber]
-              player.hand.append(self.draw(player))
+              player.hand.append(self.deck.draw(player))
             except IndexError:
               pass
             targetTeam.coupFourres += 1
