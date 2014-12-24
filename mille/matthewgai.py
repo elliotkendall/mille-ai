@@ -22,6 +22,7 @@ from __future__ import division  # / == float, // == int
 from mille.ai import AI
 from mille.cards import Cards
 from mille.deck import Deck
+from mille.game import Game
 from mille.move import Move
 
 import collections
@@ -85,83 +86,132 @@ class MatthewgAI(AI):
 
 
   def makeMove(self, gameState):
-    discards = []
-    mileage = []
-    attacks = []
-    remedies = []
-    safeties = []
-    for play in gameState.validMoves:
-      if (play.type == Move.DISCARD):
-        discards.append(play)
+    moves = gameState.validMoves
+    discardCards = [move.card
+                    if move.type == Move.DISCARD
+                    else None
+                    for move in moves]
+    moveValues = dict((moves[i],
+                       self.moveValue(moves[i], gameState, i, discardCards))
+                      for i in xrange(len(moves)))
+    #print "XXX"
+    #for (move, value) in moveValues.iteritems():
+    #  print "XXX: ...Move %s: %r" % (move, value)
+    moves.sort(key=lambda move: moveValues[move],
+               reverse=True)
+    return moves[0]
+
+  def moveValue(self, move, gameState, discardIdx, discardCards):
+    # Value of a move is the amount it moves us closer to winning,
+    # or (amount it harms an opponent / number of opponents), or
+    # (for discard) expected value of replacement card.
+    if move.type == Move.DISCARD:
+      cardValue = self.cardValue(move.card,
+                                 discardIdx,
+                                 discardCards,
+                                 gameState)
+      # TODO: This isn't on the same scale as moveValue!
+      # TODO: Factor in expected value of replacement card.
+      # TODO: Constant needs tweaking...
+      # TODO: This is *way* too quick to discard a remedy.  It discards
+      #       a gasoline over a mileage card.
+      #print "ZZZ: ...Value of %s: %r" % (move, cardValue)
+      return (1 - cardValue/10) * 0.01
+
+    # TODO: Factor in "safe trip" cost of playing 200km,
+    # "shutout" cost of failing to play an attack,
+    # and "delayed action" cost of failing to discard.
+    gamePointsRemaining = max(Game.pointsToWin - gameState.us.totalScore, 0)
+
+    card = move.card
+    cardType = Cards.cardToType(card)
+    if cardType == Cards.MILEAGE:
+      # TODO: This assumes an extension.
+      tripMileageRemaining = 1000 - gameState.us.mileage
+      tripRemainingMileagePercentConsumed = Cards.cardToMileage(card) / tripMileageRemaining
+      # TODO: Factor in delayed action, safe trip, shutout.
+      # TODO: Assumes extension.
+      if gamePointsRemaining > 0:
+        gameRemainingPercentAdvancedAfterCompletingTrip = max(1.0, (400 + 200) / gamePointsRemaining)
       else:
-        cardType = Cards.cardToType(play.card)
-        if cardType == Cards.MILEAGE:
-          mileage.append(play)
-        elif cardType == Cards.REMEDY:
-          remedies.append(play)
-        elif cardType == Cards.ATTACK:
-          attacks.append(play)
-        elif cardType == Cards.SAFETY:
-          safeties.append(play)
-        else:
-          raise Exception("Unknown type for %r: %r" % (play.card, cardType))
+        gameRemainingPercentAdvancedAfterCompletingTrip = 0
 
-    # If we can move, move as far as possible.
-    mileage.sort(key=lambda move: Cards.cardToMileage(move.card), reverse=True)
-    if len(mileage) > 0:
-      return mileage[0]
+      # e.g. the game is currently at 0 points (0% done), and completing this trip will net 600 points
+      # (600/5000=12% done).  And the trip is currently at 900km (100km remaining), and playing this mileage
+      # card will get us to 1000k (100% of remaining distance.)  Value of playing this move is:
+      #   1.00 * 0.12
+      # TODO: This should be even more valuable, because it eliminates the possibility of future attacks.
+      return tripRemainingMileagePercentConsumed * gameRemainingPercentAdvancedAfterCompletingTrip
+    elif cardType == Cards.REMEDY:
+      if card == Cards.REMEDY_END_OF_LIMIT and not gameState.us.speedLimit:
+        return 0.0
 
-    # Play a remedy if we can
-    if len(remedies) > 0:
-      return remedies[0]
-
-    # Attack whoever's furthest ahead, unless they're already impaired.
-    # TODO: Also factor in who's beaten us in past games.
-    attackValues = dict((attacks[i],
-                         self.cardValue(attacks[i].card,
-                                        i,
-                                        attacks,
-                                        gameState,
-                                        target=attacks[i].target))
-                        for i in xrange(len(attacks)))
-    attacks.sort(cmp=lambda a, b: self.compareAttacks(attackValues, gameState, a, b),
-                 reverse=True)
-    for attack in attacks:
-      if attackValues[attack] == 0:
-        # TODO: Generalize "card value" to be used to pick a move,
-        # not just a static order of "move, remedy, attack, ...".
-        continue
-
-      target = gameState.teamNumberToTeam(attack.target)
-      if attack.card == Cards.ATTACK_SPEED_LIMIT:
+      # If we need a remedy to move, and we have that remedy, it's a rather strong play!
+      return 1.0
+    elif cardType == Cards.SAFETY:
+      # Adjust this to control how tightly we horde safeties for CF.
+      return 0.6
+    elif cardType == Cards.ATTACK:
+      target = gameState.teamNumberToTeam(move.target)
+      if card == Cards.ATTACK_SPEED_LIMIT:
         # If they're already under a speed limit, don't bother with another.
         if target.speedLimit:
-          continue
+          return 0.0
       else:
         # If they already need a remedy, don't bother with another -- unless they need
         # "go", in which case the attack is still worthwhile because now they need
         # the specific attack's remedy *in addition to* go.
         if target.needRemedy and target.needRemedy != Cards.REMEDY_GO:
-          continue
+          return 0.0
 
-      return attack
+      # By default, everyone is equally likely to win.
+      priorOddsTargetWillWinGame = 1 / (len(gameState.opponents) + 1)
 
-    # Play a safety rather than discard
-    # TODO: Might be worth discarding certain non-safety cards rather
+      # Factor in how close everyone is to 5k points,
+      # and also how close this opponent is to completing the trip.
+      # If this opponent is at 4.9k pts and everyone else is at 1k,
+      # opponent is crushingly likely to win.  OTOH if everyone
+      # else is at 975km on the trip and this opponent is at 0km,
+      # they're not going to win the trip anyway...
+      #
+      # First, figure out the "game percent done" -- how close
+      # to done are we?  The closer we are to done, the more
+      # certain we are in predicting the winner.
+      maxScore = max([gameState.us.totalScore] +
+                     [opponent.totalScore for opponent in gameState.opponents])
+      gamePercentDone = maxScore / Game.pointsToWin
+
+      # Next, figure out (based on current score) how likely the player is to win.
+      # Assume that the player with the max score will prevail, and that their
+      # opponents are proportionally likely to win based on their own scores.
+      if maxScore == 0:
+        aggregateTargetWinChance = priorOddsTargetWillWinGame
+      else:
+        currentScoreTargetWinChance = target.totalScore / maxScore
+
+        # We've now computed two different odds of winning based on the current scores -- so,
+        # not factoring in the current trip at all -- one "everyone is equally likely" and
+        # one "base everything on current scores.  Combine them according to our certainty
+        # in each metric, aka gamePercentDone.
+        aggregateTargetWinChance = ((currentScoreTargetWinChance * gamePercentDone) +
+                                    (priorOddsTargetWillWinGame * (1-gamePercentDone))) / 2
+
+      # Fantastic, we now know how threatening this entity is in general.
+      # But is attacking them going to make a difference on the current trip?
+      # TODO: Assumes an extension.
+      # TODO: Finish implementing this!  Factor in number of turns expected to remain,
+      #       mileage cards opponent is likely to have/draw...
+      targetTripCompletionChance = target.mileage / 1000
+
+      # TODO: Add an "aggressiveness" constant?
+      return ((1 - self.chanceOpponentHasProtection(target, card)) *
+              aggregateTargetWinChance *
+              targetTripCompletionChance)
+            
+
     # than playing them outright, so that we can save safeties for coup fourre.
     if len(safeties) > 0:
       return safeties[0]
-    
-    # Discard the least valuable card.
-    discardCards = tuple(discard.card for discard in discards)
-    cardValues = dict((discards[discardIdx],
-                       self.cardValue(discards[discardIdx].card,
-                                      discardIdx,
-                                      discardCards,
-                                      gameState))
-                      for discardIdx in xrange(len(discards)))
-    discards.sort(key=lambda discard: cardValues[discard])
-    return discards[0]
 
   def playCoupFourre(self, attackCard, gameState):
     return True
@@ -170,15 +220,8 @@ class MatthewgAI(AI):
     # TODO: Don't go for it if we're way in the lead.
     return True
 
-  def cardValue(self, card, cardIdx, cards, gameState, target=None):
+  def cardValue(self, card, cardIdx, cards, gameState):
     # moveIdx and cards let us disambiguate between two equal cards in our hand.
-    #
-    # By default, evaluates the value w.r.t. all potential targets;
-    # this mode is used when evaluating potential discards.  If target
-    # (a team number) is specified, evaluates the value w.r.t. the
-    # specific target; this mode is used when evaluating potential
-    # attacks.
-    #
     #
     # All equally worthless:
     # * Safeties in play or elsewhere in our hand
@@ -193,9 +236,6 @@ class MatthewgAI(AI):
     # * Remedy: 4pt, minus 1pt for duplicates in our hand (min=1).
     # * Unplayed safeties: 9pt
     # * Attack: 6pt * percentage of opponents vulnerable to it
-    #   TODO: Also factor in likelihood of future safety/remedy draw.
-    #   TODO: ...and have it be target-specific, based on opponent's previous
-    #            discards.
 
     cardType = Cards.cardToType(card)
     if cardType == Cards.MILEAGE:
@@ -210,7 +250,10 @@ class MatthewgAI(AI):
     elif cardType == Cards.REMEDY:
       safety = Cards.remedyToSafety(card)
       attack = Cards.remedyToAttack(card)
-      if safety in gameState.us.safeties:
+      # Go is special because even if we have the safety (Right of Way),
+      # we still want to hang onto it because we'll need to go after
+      # getting attacked some other way.
+      if card != Cards.REMEDY_GO and safety in gameState.us.safeties:
         return 0
       else:
         # Do we already have an equivalent safety in our hand?
@@ -224,6 +267,7 @@ class MatthewgAI(AI):
           
         return max(1, 4 - duplicateRemedies) * (
           # The more likely this attack is to come up, the more valuable the remedy is.
+          # TODO: For Go, *all* attacks count!
           self.cardsUnseen[attack] / max(self.numCardsUnseen, 1))
     elif cardType == Cards.SAFETY:
       if card in gameState.us.safeties:
@@ -238,11 +282,7 @@ class MatthewgAI(AI):
       safety = Cards.attackToSafety(card)
       remedy = Cards.attackToRemedy(card)
 
-      if target:
-        targets = (gameState.teamNumberToTeam(target), )
-      else:
-        targets = gameState.opponents
-
+      targets = gameState.opponents
       totalTargets = len(targets)
       vulnerableTargets = totalTargets
       neededSafety = Cards.attackToSafety(card)
@@ -259,15 +299,3 @@ class MatthewgAI(AI):
             self.cardsUnseen[remedy]) / max(self.numCardsUnseen, 1)))
     else:
       raise Exception("Unknown card type for %r: %r" % (card, cardType))
-
-  def compareAttacks(self, attackValues, gameState, a, b):
-    # Sort first by likelihood of attack success, then by threat level of target.
-    # TODO: More advanced threat level model than just mileage.
-
-    rets = (cmp(attackValues[a], attackValues[b]),
-            cmp(gameState.teamNumberToTeam(a.target).mileage,
-                gameState.teamNumberToTeam(b.target).mileage))
-    for ret in rets:
-      if ret != 0:
-        return ret
-    return 0
