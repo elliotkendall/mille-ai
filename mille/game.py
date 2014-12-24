@@ -105,7 +105,7 @@ class Game:
 
     # Deal hands
     for player in self.players:
-      player.hand = self.deck.draw(6)
+      player.hand = self.deck.draw(player, 6)
 
     # Reset per-hand team variables
     for team in self.teams:
@@ -121,7 +121,7 @@ class Game:
       currentTeam = self.teams[currentPlayer.teamNumber]
 
       try:
-        currentPlayer.hand.append(self.deck.draw())
+        currentPlayer.hand.append(self.deck.draw(currentPlayer))
       except IndexError:
         self.delayedAction = True
 
@@ -230,7 +230,8 @@ class Game:
             del self.players[coupFourrePlayerNumber].hand[self.players[coupFourrePlayerNumber].hand.index(neededSafety)]
             # Draw an extra card to replace the one just played
             try:
-              self.players[coupFourrePlayerNumber].hand.append(self.deck.draw())
+              player = self.players[coupFourrePlayerNumber]
+              player.hand.append(self.deck.draw(player))
             except IndexError:
               pass
             targetTeam.coupFourres += 1

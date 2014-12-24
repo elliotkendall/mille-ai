@@ -34,13 +34,18 @@ class Deck:
     shuffle(self.deck)
 
   # Draws the next "count" cards from the deck and returns them
-  def draw(self, count = 1):
-    if count == 1:
-      return self.deck.pop()
+  def draw(self, player, count = 1):
     ret = []
     for i in range(count):
       ret.append(self.deck.pop())
-    return ret
+
+    for card in ret:
+      player.ai.cardDrawn(card)
+
+    if count == 1:
+      return ret[0]
+    else:
+      return ret
 
   def cardsLeft(self):
     return len(self.deck)
