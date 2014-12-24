@@ -24,6 +24,9 @@ from mille.cards import Cards
 from mille.deck import Deck
 from mille.move import Move
 
+import collections
+
+
 class MatthewgAI(AI):
 
   def __init__(self):
@@ -39,18 +42,47 @@ class MatthewgAI(AI):
     # other players' hands.
     self.numCardsUnseen = sum(self.cardsUnseen.values())
 
+    # Keep track of how many remedies of each type have been
+    # discarded by each player.  It's a sign they might be hoarding
+    # a safety for a CF.  When a player *plays* that remedy, this
+    # count resets (since that's a sign that they *don't* have the
+    # safety.)
+    self.interestingRemedyDiscardsByPlayer = collections.defaultdict(
+      lambda: dict((remedy, 0) for remedy in Cards.REMEDIES))
+
   def cardSeen(self, card):
     self.cardsUnseen[card] -= 1
     self.numCardsUnseen -= 1
 
   def playerPlayed(self, player, move):
     self.cardSeen(move.card)
+    if Cards.cardToType(move.card) == Cards.REMEDY and move.card != Cards.REMEDY_GO:
+      if move.type == Move.DISCARD:
+        self.interestingRemedyDiscardsByPlayer[player][move.card] += 1
+      else:
+        self.interestingRemedyDiscardsByPlayer[player][move.card] = 0
 
   def cardDrawn(self, card):
     self.cardSeen(card)
 
   def handEnded(self, scoreSummary):
     self.resetCardCount()
+
+  def chanceOpponentHasProtection(self, team, attack):
+    # Chance that a particular opponent has protection from a particular attack in their hand.
+    safety = Cards.attackToSafety(attack)
+    remedy = Cards.attackToRemedy(attack)
+
+    # Odds based on number of the card lurking out there somewhere.
+    odds = (self.cardsUnseen[safety] + self.cardsUnseen[remedy]) / max(self.numCardsUnseen, 1)
+
+    # Boost likelihood by 50% for each remedy they've discarded.
+    for player in team.playerNumbers:
+      for _ in xrange(self.interestingRemedyDiscardsByPlayer[player][remedy]):
+        odds *= 1.5
+
+    return odds
+
 
   def makeMove(self, gameState):
     discards = []
@@ -217,7 +249,9 @@ class MatthewgAI(AI):
       for potentialTarget in targets:
         if neededSafety in potentialTarget.safeties:
           vulnerableTargets -= 1
-        # else vulnerableTargets -= likelihood that target has safety/remedy in hand.
+        else:
+          vulnerableTargets -= self.chanceOpponentHasProtection(
+            potentialTarget, card)
       return (6 * (vulnerableTargets / totalTargets) * 
         # The more likely there is to be protection against this attack,
         # the less valuable the attack is.
