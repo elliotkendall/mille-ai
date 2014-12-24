@@ -26,12 +26,34 @@ from mille.move import Move
 
 class MatthewgAI(AI):
 
-  def makeMove(self, gameState):
+  def __init__(self):
+    self.resetCardCount()
+
+  def resetCardCount(self):
     # Doesn't attempt to account for a card in another player's hand.
     # If it's not in our hand, a tableau, or the discard pile, it
     # is possibly remaining.
-    cardsPossiblyRemaining = self.countCards(gameState)
+    self.cardsUnseen = dict(Deck.composition)
 
+    # Unlike GameState.cardsLeft, this also includes cards in
+    # other players' hands.
+    self.numCardsUnseen = sum(self.cardsUnseen.values())
+
+  def cardSeen(self, card):
+    self.cardsUnseen[card] -= 1
+    self.numCardsUnseen -= 1
+
+  def playerPlayed(self, player, move):
+    # NB: Contrary to the documentation, this is also called when *we* make a move.
+    self.cardSeen(move.card)
+
+  def cardDrawn(self, card):
+    self.cardSeen(card)
+
+  def handEnded(self, scoreSummary):
+    self.resetCardCount()
+
+  def makeMove(self, gameState):
     discards = []
     mileage = []
     attacks = []
@@ -64,23 +86,34 @@ class MatthewgAI(AI):
 
     # Attack whoever's furthest ahead, unless they're already impaired.
     # TODO: Also factor in who's beaten us in past games.
-    # TODO: Also factor in likelihood that they might have coup fourre available.
-    attacks.sort(key=lambda move: gameState.teamNumberToTeam(move.target).mileage, reverse=True)
-    if len(attacks) > 0:
-      for attack in attacks:
-        target = gameState.teamNumberToTeam(attack.target)
-        if attack.card == Cards.ATTACK_SPEED_LIMIT:
-          # If they're already under a speed limit, don't bother with another.
-          if target.speedLimit:
-            continue
-        else:
-          # If they already need a remedy, don't bother with another -- unless they need
-          # "go", in which case the attack is still worthwhile because now they need
-          # the specific attack's remedy *in addition to* go.
-          if target.needRemedy and target.needRemedy != Cards.REMEDY_GO:
-            continue
+    attackValues = dict((attacks[i],
+                         self.cardValue(attacks[i].card,
+                                        i,
+                                        attacks,
+                                        gameState,
+                                        target=attacks[i].target))
+                        for i in xrange(len(attacks)))
+    attacks.sort(cmp=lambda a, b: self.compareAttacks(attackValues, gameState, a, b),
+                 reverse=True)
+    for attack in attacks:
+      if attackValues[attack] == 0:
+        # TODO: Generalize "card value" to be used to pick a move,
+        # not just a static order of "move, remedy, attack, ...".
+        continue
 
-        return attack
+      target = gameState.teamNumberToTeam(attack.target)
+      if attack.card == Cards.ATTACK_SPEED_LIMIT:
+        # If they're already under a speed limit, don't bother with another.
+        if target.speedLimit:
+          continue
+      else:
+        # If they already need a remedy, don't bother with another -- unless they need
+        # "go", in which case the attack is still worthwhile because now they need
+        # the specific attack's remedy *in addition to* go.
+        if target.needRemedy and target.needRemedy != Cards.REMEDY_GO:
+          continue
+
+      return attack
 
     # Play a safety rather than discard
     # TODO: Might be worth discarding certain non-safety cards rather
@@ -94,8 +127,7 @@ class MatthewgAI(AI):
                        self.cardValue(discards[discardIdx].card,
                                       discardIdx,
                                       discardCards,
-                                      gameState,
-                                      cardsPossiblyRemaining))
+                                      gameState))
                       for discardIdx in xrange(len(discards)))
     discards.sort(key=lambda discard: cardValues[discard])
     return discards[0]
@@ -107,25 +139,15 @@ class MatthewgAI(AI):
     # TODO: Don't go for it if we're way in the lead.
     return True
 
-  def countCards(self, gameState):
-    cardsPossiblyRemaining = dict(Deck.composition)
-    def countCardsForList(l):
-      for card in l:
-        cardsPossiblyRemaining[card] -= 1
-    countCardsForList(gameState.discardPile)
-    countCardsForList(gameState.hand)
-    def countCardsForTeam(team):
-      countCardsForList(team.mileagePile)
-      countCardsForList(team.speedPile)
-      countCardsForList(team.battlePile)
-      countCardsForList(team.safeties)
-    countCardsForTeam(gameState.us)
-    for opponent in gameState.opponents:
-      countCardsForTeam(opponent)
-    return cardsPossiblyRemaining
-
-  def cardValue(self, card, cardIdx, cards, gameState, cardsPossiblyRemaining):
+  def cardValue(self, card, cardIdx, cards, gameState, target=None):
     # moveIdx and cards let us disambiguate between two equal cards in our hand.
+    #
+    # By default, evaluates the value w.r.t. all potential targets;
+    # this mode is used when evaluating potential discards.  If target
+    # (a team number) is specified, evaluates the value w.r.t. the
+    # specific target; this mode is used when evaluating potential
+    # attacks.
+    #
     #
     # All equally worthless:
     # * Safeties in play or elsewhere in our hand
@@ -138,10 +160,11 @@ class MatthewgAI(AI):
     # The good stuff:
     # * Mileage cards: 1pt per mileage/25
     # * Remedy: 4pt, minus 1pt for duplicates in our hand (min=1).
-    #   TODO: Also factor in likelihood of future attack draw.
     # * Unplayed safeties: 9pt
     # * Attack: 6pt * percentage of opponents vulnerable to it
     #   TODO: Also factor in likelihood of future safety/remedy draw.
+    #   TODO: ...and have it be target-specific, based on opponent's previous
+    #            discards.
 
     cardType = Cards.cardToType(card)
     if cardType == Cards.MILEAGE:
@@ -154,7 +177,9 @@ class MatthewgAI(AI):
       else:
         return Cards.cardToMileage(card) / 25
     elif cardType == Cards.REMEDY:
-      if Cards.remedyToSafety(card) in gameState.us.safeties:
+      safety = Cards.remedyToSafety(card)
+      attack = Cards.remedyToAttack(card)
+      if safety in gameState.us.safeties:
         return 0
       else:
         # Do we already have an equivalent safety in our hand?
@@ -163,9 +188,12 @@ class MatthewgAI(AI):
           otherCardType = Cards.cardToType(otherHandCard)
           if otherCardType == Cards.REMEDY and otherHandCard == card:
             duplicateRemedies += 1
-          elif otherCardType == Cards.SAFETY and Cards.remedyToSafety(card) == otherHandCard:
+          elif otherCardType == Cards.SAFETY and safety == otherHandCard:
             return 0
-        return max(1, 4 - duplicateRemedies)
+          
+        return max(1, 4 - duplicateRemedies) * (
+          # The more likely this attack is to come up, the more valuable the remedy is.
+          self.cardsUnseen[attack] / self.numCardsUnseen)
     elif cardType == Cards.SAFETY:
       if card in gameState.us.safeties:
         return 0
@@ -176,12 +204,37 @@ class MatthewgAI(AI):
             return 0
         return 9
     elif cardType == Cards.ATTACK:
-      totalOpponents = len(gameState.opponents)
-      vulnerableOpponents = totalOpponents
+      safety = Cards.attackToSafety(card)
+      remedy = Cards.attackToRemedy(card)
+
+      if target:
+        targets = (gameState.teamNumberToTeam(target), )
+      else:
+        targets = gameState.opponents
+
+      totalTargets = len(targets)
+      vulnerableTargets = totalTargets
       neededSafety = Cards.attackToSafety(card)
-      for opponent in gameState.opponents:
-        if neededSafety in opponent.safeties:
-          vulnerableOpponents -= 1
-      return 6 * (vulnerableOpponents / totalOpponents)
+      for potentialTarget in targets:
+        if neededSafety in potentialTarget.safeties:
+          vulnerableTargets -= 1
+        # else vulnerableTargets -= likelihood that target has safety/remedy in hand.
+      return (6 * (vulnerableTargets / totalTargets) * 
+        # The more likely there is to be protection against this attack,
+        # the less valuable the attack is.
+        1-((self.cardsUnseen[safety] +
+            self.cardsUnseen[remedy]) / self.numCardsUnseen))
     else:
       raise Exception("Unknown card type for %r: %r" % (card, cardType))
+
+  def compareAttacks(self, attackValues, gameState, a, b):
+    # Sort first by likelihood of attack success, then by threat level of target.
+    # TODO: More advanced threat level model than just mileage.
+
+    rets = (cmp(attackValues[a], attackValues[b]),
+            cmp(gameState.teamNumberToTeam(a.target).mileage,
+                gameState.teamNumberToTeam(b.target).mileage))
+    for ret in rets:
+      if ret != 0:
+        return ret
+    return 0
