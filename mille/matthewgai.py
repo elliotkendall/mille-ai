@@ -34,6 +34,11 @@ class MatthewgAI(AI):
     self.resetCardCount()
     self.gameState = None
 
+  def debug(self, msg, *args):
+    if self.gameState and self.gameState.debug:
+      print msg % tuple(arg() if callable(arg) else arg
+                        for arg in args)
+
   def resetCardCount(self):
     # Doesn't attempt to account for a card in another player's hand.
     # If it's not in our hand, a tableau, or the discard pile, it
@@ -55,6 +60,15 @@ class MatthewgAI(AI):
   def cardSeen(self, card):
     self.cardsUnseen[card] -= 1
     self.numCardsUnseen -= 1
+    self.debug("After seeing %s, unseen cards:\n%s",
+               Cards.cardToString(card),
+               self.unseenCardsToString)
+
+  def unseenCardsToString(self):
+    ret = []
+    for card in xrange(max(Deck.composition.keys()) + 1):
+      ret.append("  %s: %d\n" % (Card.cardToString(card), self.cardsUnseen[card]))
+    return "".join(ret)
 
   def playerPlayed(self, player, move):
     self.cardSeen(move.card)
@@ -75,14 +89,29 @@ class MatthewgAI(AI):
     safety = Cards.attackToSafety(attack)
     remedy = Cards.attackToRemedy(attack)
 
+    if safety in team.safeties:
+      self.debug("Team %d has already played safety v. %s",
+                 team.number,
+                 Cards.cardToString(attack))
+      return 1.0
+
     # Odds based on number of the card lurking out there somewhere.
     odds = self.percentOfCardsRemaining(safety, remedy)
 
     # Boost likelihood by 50% for each remedy they've discarded.
+    remedyDiscards = 0
     for player in team.playerNumbers:
       for _ in xrange(self.interestingRemedyDiscardsByPlayer[player][remedy]):
+        remedyDiscards += 1
         odds *= 1.5
 
+    self.debug("Team %d protection odds %r v. %s, based on %d safety %d remedy %d discards.",
+               team.number,
+               odds,
+               Cards.cardToString(attack),
+               self.cardsUnseen[safety],
+               self.cardsUnseen[remedy],
+               remedyDiscards)
     return odds
 
 
@@ -97,11 +126,12 @@ class MatthewgAI(AI):
       moveValues = dict((moves[i],
                          self.moveValue(moves[i], i, discardCards))
                         for i in xrange(len(moves)))
-      #print "XXX"
-      #for (move, value) in moveValues.iteritems():
-      #  print "XXX: ...Move %s: %r" % (move, value)
+
       moves.sort(key=lambda move: moveValues[move],
                  reverse=True)
+      self.debug("Moves:\n%s",
+                 lambda: "".join(["  %r: %s\n" % (moveValues[move], move)
+                                  for move in moves]))
     finally:
       self.gameState = None
     return moves[0]
@@ -275,13 +305,10 @@ class MatthewgAI(AI):
 
       valuesPerTarget = []
       for target in self.gameState.opponents:
-        if safety in target.safeties:
-          valuesPerTarget.append(0.0)
-        else:
-          valuesPerTarget.append(
-            (1-self.chanceOpponentHasProtection(target, card)) *
-            (1-self.percentOfCardsRemaining(safety, remedy)) *
-            self.valueOfPoints(self.expectedTurnPoints(target), target))
+        valuesPerTarget.append(
+          (1-self.chanceOpponentHasProtection(target, card)) *
+          (1-self.percentOfCardsRemaining(safety, remedy)) *
+          self.valueOfPoints(self.expectedTurnPoints(target), target))
       return sum(valuesPerTarget)/len(valuesPerTarget)
     else:
       raise Exception("Unknown card type for %r: %r" % (card, cardType))
