@@ -189,19 +189,11 @@ class MatthewgAI(AI):
         if target.needRemedy and target.needRemedy != Cards.REMEDY_GO:
           return 0.0
 
-
-      # Fantastic, we now know how threatening this entity is in general.
-      # But is attacking them going to make a difference on the current trip?
-      # TODO: Assumes an extension.
-      # TODO: Finish implementing this!  Factor in number of turns expected to remain,
-      #       mileage cards opponent is likely to have/draw...
-      targetTripCompletionChance = target.mileage / 1000
-
       # TODO: Add an "aggressiveness" constant?
       return ((1 - self.chanceOpponentHasProtection(target, card)) *
               self.chanceTeamWillWin(target) *
               self.chanceTeamWillCompleteTrip(target))
-            
+
 
     # than playing them outright, so that we can save safeties for coup fourre.
     if len(safeties) > 0:
@@ -219,7 +211,12 @@ class MatthewgAI(AI):
     # card will get us to 1000k (100% of remaining distance.)  Value of playing this move is:
     #   1.00 * 0.12
     # TODO: This should be even more valuable, because it eliminates the possibility of future attacks.
-    return tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us)
+    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us)
+    self.debug("Value of %dkm: %r, since it covers %r of remaining trip distance.",
+               Cards.cardToMileage(card),
+               ret,
+               tripRemainingMileagePercentConsumed)
+    return ret
 
 
   def playCoupFourre(self, attackCard, gameState):
@@ -316,9 +313,12 @@ class MatthewgAI(AI):
   def valueOfPoints(self, points, team):
     gamePointsRemaining = max(Game.pointsToWin - team.totalScore, 0)
     if gamePointsRemaining > 0:
-      return max(1.0, points / gamePointsRemaining)
+      ret = max(1.0, points / gamePointsRemaining)
     else:
-      return 0.5
+      ret = 0.5
+    self.debug("Value of %d points to team %d: %r (%d remaining)",
+               points, team.number, ret, gamePointsRemaining)
+    return ret
 
   def chanceTeamWillCompleteTrip(self, team):
     needMileage = self.gameState.target - team.mileage
@@ -329,11 +329,19 @@ class MatthewgAI(AI):
     unseenTotalMileage = sum([self.cardsUnseen[card]
                               for card in validMileageCards])
     if unseenTotalMileage < needMileage:
-      return 0.0
+      ret = 0.0
     else:
       # TODO: Factor in how close everyone is to finishing the trip,
       # and how many cards are left in the deck.
-      return validMileagePct * (needMileage / unseenTotalMileage)
+      ret = validMileagePct * (needMileage / unseenTotalMileage)
+    self.debug("%r chance that %d will complete trip (need %dkm, unseen: [%s])",
+               ret,
+               team.number,
+               needMileage,
+               ", ".join([
+                   "%dkm:%d" % (Cards.cardToMileage(card), self.cardsUnseen[card])
+                   for card in validMileageCards]))
+    return ret
 
 
   def chanceTeamWillWin(self, team):
@@ -370,6 +378,8 @@ class MatthewgAI(AI):
       aggregateTargetWinChance = ((currentScoreTargetWinChance * gamePercentDone) +
                                   (priorOddsTargetWillWinGame * (1-gamePercentDone))) / 2
 
+    self.debug("%r chance that team %d will win (game %r done, team has %d/%d max %d.)",
+               aggregateTargetWinChance, team.number, gamePercentDone, team.totalScore, Game.pointsToWin, maxScore)
     return aggregateTargetWinChance
 
   def expectedTurnPoints(self, team):
