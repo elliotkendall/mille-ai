@@ -326,7 +326,7 @@ class MatthewgAI(AI):
                          for card in Cards.MILEAGE_CARDS
                          if Cards.cardToMileage(card) <= needMileage]
     validMileagePct = self.percentOfCardsRemaining(*validMileageCards)
-    unseenTotalMileage = sum([self.cardsUnseen[card]
+    unseenTotalMileage = sum([Cards.cardToMileage(card) * self.cardsUnseen[card]
                               for card in validMileageCards])
     if unseenTotalMileage < needMileage:
       ret = 0.0
@@ -334,10 +334,12 @@ class MatthewgAI(AI):
       # TODO: Factor in how close everyone is to finishing the trip,
       # and how many cards are left in the deck.
       ret = validMileagePct * (needMileage / unseenTotalMileage)
-    self.debug("%r chance that %d will complete trip (need %dkm, unseen: [%s])",
+    self.debug("%r chance that %d will complete trip (VMP %r, need %dkm, unseen: %d=[%s])",
                ret,
                team.number,
+               validMileagePct,
                needMileage,
+               unseenTotalMileage,
                ", ".join([
                    "%dkm:%d" % (Cards.cardToMileage(card), self.cardsUnseen[card])
                    for card in validMileageCards]))
