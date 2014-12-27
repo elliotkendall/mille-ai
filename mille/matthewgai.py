@@ -189,10 +189,20 @@ class MatthewgAI(AI):
         if target.needRemedy and target.needRemedy != Cards.REMEDY_GO:
           return 0.0
 
+      # TODO: Balance these, and also factor in chance opponent can get protection in the future.
+      # And also factor in trip distance remaining for speed limit.
+      if card == Cards.ATTACK_STOP:
+        attackQualityModifier = 0.25
+      elif card == Cards.ATTACK_SPEED_LIMIT:
+        attackQualityModifier = 0.25
+      else:
+        attackQualityModifier = 1.0
+
       # TODO: Add an "aggressiveness" constant?
       return ((1 - self.chanceOpponentHasProtection(target, card)) *
               self.chanceTeamWillWin(target) *
-              self.chanceTeamWillCompleteTrip(target))
+              self.chanceTeamWillCompleteTrip(target) *
+              attackQualityModifier)
 
 
     # than playing them outright, so that we can save safeties for coup fourre.
@@ -257,41 +267,26 @@ class MatthewgAI(AI):
       else:
         return self.mileageCardValue(card)
     elif cardType == Cards.REMEDY:
-      # Go is special because even if we have the safety (Right of Way),
-      # we still want to hang onto it because we'll need to go after
-      # getting attacked some other way.
+      
+      # Attacks that could necessitate this card.
       if card == Cards.REMEDY_GO:
-        # If we have all the safeties, and we're moving, Go is useless.
-        # Otherwise, it's awesome.
-        if (self.gameState.us.moving and
-            (len(self.gameState.us.safeties) +
-             len([c for c in cards if Cards.cardToType(c) == Cards.SAFETY])) == len(Cards.SAFETIES)):
-          return 0.0
-        else:
-          return 1.0
-      elif Cards.remedyToSafety(card) in self.gameState.us.safeties:
-        return 0.0
+        relevantAttacks = Cards.ATTACKS[:]
       else:
-        # Do we already have an equivalent safety in our hand?
-        duplicateRemedies = -1
-        for otherHandCard in cards:
-          otherCardType = Cards.cardToType(otherHandCard)
-          if otherCardType == Cards.REMEDY and otherHandCard == card:
-            duplicateRemedies += 1
-          elif otherCardType == Cards.SAFETY and otherHandCard == card:
-            # We're holding the safety, the remedy is useless.
-            return 0.0
+        relevantAttacks = [Cards.remedyToAttack(card)]
 
-        # Factor in:
-        # 1. Value of taking a turn.
-        # 2. Likelihood of getting hit with this attack.
-        #    (Number of attacks remaining / number of teams in game.)
-        # 3. Likelihood of drawing another remedy (or the safety.)
-        return (self.valueOfPoints(self.expectedTurnPoints(self.gameState.us),
-                                   self.gameState.us) *
-                (self.percentOfCardsRemaining(Cards.remedyToAttack(card)) /
-                 len(self.gameState.opponents) + 1) *
-                (1-self.percentOfCardsRemaining(card, Cards.remedyToSafety(card))))
+      relevantAttacks = [c for c in relevantAttacks
+                         if not Cards.attackToSafety(c) in self.gameState.us.safeties + cards]
+
+      # Factor in:
+      # 1. Value of taking a turn.
+      # 2. Likelihood of getting hit with a relevant attack.
+      #    (Number of attacks remaining / number of teams in game.)
+      #    NB: If no attacks are relevant, this will be 0.
+      # TODO: Also add likelihood of drawing another remedy (or the safety.)
+      return (self.valueOfPoints(self.expectedTurnPoints(self.gameState.us),
+                                 self.gameState.us) *
+              (self.percentOfCardsRemaining(*relevantAttacks) /
+               len(self.gameState.opponents) + 1))
     elif cardType == Cards.SAFETY:
       # Never discard a safety!
       # (Assuming default deck composition of 1 of each type...)
@@ -333,7 +328,7 @@ class MatthewgAI(AI):
     else:
       # TODO: Factor in how close everyone is to finishing the trip,
       # and how many cards are left in the deck.
-      ret = validMileagePct * (needMileage / unseenTotalMileage)
+      ret = validMileagePct * (unseenTotalMileage / needMileage)
     self.debug("%r chance that %d will complete trip (VMP %r, need %dkm, unseen: %d=[%s])",
                ret,
                team.number,
