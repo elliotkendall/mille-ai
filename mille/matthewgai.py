@@ -26,18 +26,37 @@ from mille.game import Game
 from mille.move import Move
 
 import collections
+import math
+import random
+
+
+def cacheComputationForTurn(fn):
+  def _callOncePerTurn(ai, *args, **kwargs):
+    # Flatten kwargs into a tuple of (k1, v1, k2, v2, ..., kn, vn)
+    sig = tuple([fn.__name__] + map(repr, args) + map(repr, reduce(lambda a, b: a + b, kwargs.items(), tuple())))
+    if sig in ai.turnCache:
+      return ai.turnCache[sig]
+    else:
+      ret = fn(ai, *args, **kwargs)
+      ai.turnCache[sig] = ret
+      return ret
+  return _callOncePerTurn
 
 
 class MatthewgAI(AI):
 
   def __init__(self):
     self.resetCardCount()
+    self.resetTurnCache()
     self.gameState = None
 
   def debug(self, msg, *args):
     if self.gameState and self.gameState.debug:
       print msg % tuple(arg() if callable(arg) else arg
                         for arg in args)
+
+  def resetTurnCache(self):
+    self.turnCache = {}
 
   def resetCardCount(self):
     # Doesn't attempt to account for a card in another player's hand.
@@ -64,6 +83,7 @@ class MatthewgAI(AI):
                Cards.cardToString(card),
                self.unseenCardsToString)
 
+  @cacheComputationForTurn
   def unseenCardsToString(self):
     ret = []
     for card in xrange(max(Deck.composition.keys()) + 1):
@@ -84,6 +104,7 @@ class MatthewgAI(AI):
   def handEnded(self, scoreSummary):
     self.resetCardCount()
 
+  @cacheComputationForTurn
   def chanceOpponentHasProtection(self, team, attack):
     # Chance that a particular opponent has protection from a particular attack in their hand.
     safety = Cards.attackToSafety(attack)
@@ -116,6 +137,7 @@ class MatthewgAI(AI):
 
 
   def makeMove(self, gameState):
+    self.resetTurnCache()
     self.gameState = gameState
     try:
       moves = self.gameState.validMoves
@@ -136,6 +158,7 @@ class MatthewgAI(AI):
       self.gameState = None
     return moves[0]
 
+  @cacheComputationForTurn
   def moveValue(self, move, discardIdx, discardCards):
     # Value of a move is the amount it moves us closer to winning,
     # or (amount it harms an opponent / number of opponents), or
@@ -147,7 +170,7 @@ class MatthewgAI(AI):
     if move.type == Move.DISCARD:
       cardValue = self.cardValue(card, discardIdx, discardCards)
       # TODO: Factor in expected value of replacement card.
-      return (1 - cardValue) * 0.01
+      return (1 - cardValue) * 0.001
 
     # TODO: Factor in "safe trip" cost of playing 200km,
     # "shutout" cost of failing to play an attack,
@@ -209,6 +232,7 @@ class MatthewgAI(AI):
     if len(safeties) > 0:
       return safeties[0]
 
+  @cacheComputationForTurn
   def mileageCardValue(self, card):
     # TODO: This assumes an extension.
     tripMileageRemaining = 1000 - self.gameState.us.mileage
@@ -236,6 +260,7 @@ class MatthewgAI(AI):
     # TODO: Don't go for it if we're way in the lead.
     return True
 
+  @cacheComputationForTurn
   def cardValue(self, card, cardIdx, cards):
     # cardIdx and cards let us disambiguate between two equal cards in our hand.
     #
@@ -246,26 +271,34 @@ class MatthewgAI(AI):
     # * Mileage > distance remaining (assuming extension will be played)
     #   TODO: ...but what if an extension *won't* be played?
     # * Safeties we have in our hand
-    #
-    # The good stuff:
-    # * Mileage cards: 1pt per mileage/25
-    # * Remedy: 4pt, minus 1pt for duplicates in our hand (min=1).
-    # * Unplayed safeties: 9pt
-    # * Attack: 6pt * percentage of opponents vulnerable to it
+
+    # How many of this card do we already have in our hand?
+    numDuplicates = len([c for c in cards if c == card])
+    # Make this card less valuable if we have more if it on our hand.
+    # The obvious thing to do is a straight divisor:
+    # If we have 2 dupes, value each at 1/2; if 3, value each at 1/3.
+    # But that's too severe, having 2 200km is more valuable than having
+    # 1 200km!  So, we take the "duplicate fraction", 1/numDuplicates,
+    # and we want to scale down *the inverse of that* to bring it
+    # nearer to 1 (to reduce the severity of the penalty), and then
+    # invert again to cancel out the inversion.
+    dupeFrac = 1/numDuplicates
+    dupePenaltyFactor = 3
+    dupeCoefficient = 1-(1-dupeFrac)/dupePenaltyFactor
 
     cardType = Cards.cardToType(card)
     if cardType == Cards.MILEAGE:
       mileage = Cards.cardToMileage(card)
       mileageRemaining = 1000 - self.gameState.us.mileage
       if mileage > mileageRemaining:
-        return 0.0
+        return 0.0 * dupeCoefficient
       elif mileage == 200 and self.gameState.us.twoHundredsPlayed >= 2:
-        return 0.0
+        return 0.0 * dupeCoefficient
       elif mileage == 25 and cards.index(card) == cardIdx:
         # Try to hold onto a single 25km card in case we need it to finish.
-        return 1.0
+        return 1.0 * dupeCoefficient
       else:
-        return self.mileageCardValue(card)
+        return self.mileageCardValue(card) * dupeCoefficient
     elif cardType == Cards.REMEDY:
       
       # Attacks that could necessitate this card.
@@ -283,14 +316,30 @@ class MatthewgAI(AI):
       #    (Number of attacks remaining / number of teams in game.)
       #    NB: If no attacks are relevant, this will be 0.
       # TODO: Also add likelihood of drawing another remedy (or the safety.)
-      return (self.valueOfPoints(self.expectedTurnPoints(self.gameState.us),
-                                 self.gameState.us) *
-              (self.percentOfCardsRemaining(*relevantAttacks) /
-               len(self.gameState.opponents) + 1))
+      turnPoints = self.expectedTurnPoints(self.gameState.us)
+      turnPointValue = self.valueOfPoints(turnPoints, self.gameState.us)
+      # Hold onto at least one of the card if we already know we need it!
+      if (cards.index(card) == cardIdx and
+          ((not self.gameState.us.moving and card == Cards.REMEDY_GO) or
+           (self.gameState.us.speedLimit and card == Cards.REMEDY_END_OF_LIMIT) or
+           (self.gameState.us.needRemedy and card == self.gameState.us.needRemedy))):
+        self.debug("We need %s, attack on us odds == 1.0!", Cards.cardToString(card))
+        attackOnUsOdds = 1.0
+      else:
+        attackOdds = self.percentOfCardsRemaining(*relevantAttacks) * self.expectedTurnsLeft()
+        attackOnUsOdds = attackOdds / (len(self.gameState.opponents) + 1)
+      value = turnPointValue * attackOnUsOdds
+      self.debug("Card %s val: %r = %r * %r = val(%d) * pctLeft(%s)/#teams",
+                 Cards.cardToString(card),
+                 value,
+                 turnPointValue, attackOnUsOdds,
+                 turnPoints,
+                 ",".join([Cards.cardToString(c) for c in relevantAttacks]))
+      return value * dupeCoefficient
     elif cardType == Cards.SAFETY:
       # Never discard a safety!
       # (Assuming default deck composition of 1 of each type...)
-      return 1.0
+      return 1.0 * dupeCoefficient
     elif cardType == Cards.ATTACK:
       safety = Cards.attackToSafety(card)
       remedy = Cards.attackToRemedy(card)
@@ -301,46 +350,36 @@ class MatthewgAI(AI):
           (1-self.chanceOpponentHasProtection(target, card)) *
           (1-self.percentOfCardsRemaining(safety, remedy)) *
           self.valueOfPoints(self.expectedTurnPoints(target), target))
-      return sum(valuesPerTarget)/len(valuesPerTarget)
+      return sum(valuesPerTarget)/len(valuesPerTarget) * dupeCoefficient
     else:
       raise Exception("Unknown card type for %r: %r" % (card, cardType))
 
+  @cacheComputationForTurn
   def valueOfPoints(self, points, team):
     gamePointsRemaining = max(Game.pointsToWin - team.totalScore, 0)
     if gamePointsRemaining > 0:
-      ret = max(1.0, points / gamePointsRemaining)
+      ret = min(1.0, points / gamePointsRemaining)
     else:
       ret = 0.5
     self.debug("Value of %d points to team %d: %r (%d remaining)",
                points, team.number, ret, gamePointsRemaining)
     return ret
 
+  @cacheComputationForTurn
   def chanceTeamWillCompleteTrip(self, team):
-    needMileage = self.gameState.target - team.mileage
-    validMileageCards = [card
-                         for card in Cards.MILEAGE_CARDS
-                         if Cards.cardToMileage(card) <= needMileage]
-    validMileagePct = self.percentOfCardsRemaining(*validMileageCards)
-    unseenTotalMileage = sum([Cards.cardToMileage(card) * self.cardsUnseen[card]
-                              for card in validMileageCards])
-    if unseenTotalMileage < needMileage:
-      ret = 0.0
-    else:
-      # TODO: Factor in how close everyone is to finishing the trip,
-      # and how many cards are left in the deck.
-      ret = validMileagePct * (unseenTotalMileage / needMileage)
-    self.debug("%r chance that %d will complete trip (VMP %r, need %dkm, unseen: %d=[%s])",
-               ret,
-               team.number,
-               validMileagePct,
-               needMileage,
-               unseenTotalMileage,
-               ", ".join([
-                   "%dkm:%d" % (Cards.cardToMileage(card), self.cardsUnseen[card])
-                   for card in validMileageCards]))
+    teamResults = [result[team.number + 1]
+                   for result
+                   in self.monteCarloMileageSimulation()]
+    completionCount = 0
+    for result in teamResults:
+      if result == 0:
+        completionCount += 1
+    ret = completionCount/len(teamResults)
+    self.debug("%r chance that %d will complete trip (%d/%d)",
+               ret, team.number, completionCount, len(teamResults))
     return ret
 
-
+  @cacheComputationForTurn
   def chanceTeamWillWin(self, team):
     # First, figure out how likely this team is to win.
     # By default, everyone is equally likely to win.
@@ -379,12 +418,97 @@ class MatthewgAI(AI):
                aggregateTargetWinChance, team.number, gamePercentDone, team.totalScore, Game.pointsToWin, maxScore)
     return aggregateTargetWinChance
 
+  @cacheComputationForTurn
   def expectedTurnPoints(self, team):
     # TODO: Implement me!
     return 75
 
+  @cacheComputationForTurn
   def percentOfCardsRemaining(self, *cards):
     cardCount = 0
     for card in cards:
       cardCount += self.cardsUnseen[card]
     return cardCount / max(self.numCardsUnseen, cardCount, 1)
+
+  @cacheComputationForTurn
+  def monteCarloMileageSimulation(self):
+    # Returns a list of many (turns elapsed, team 0 trip mileage remaining, team 1 trip remaining, ...)
+    # TODO: Assumes extension.
+    results = []
+    # TODO: Speed this up, and/or be smarter when it's early in the trip, and bump up the number of iterations!
+    for _ in xrange(10):
+      needMileage = dict((team.number, team.mileage) for team in [self.gameState.us] + self.gameState.opponents)
+      moving = dict((team.number, team.moving) for team in [self.gameState.us] + self.gameState.opponents)
+      needRemedy = dict((team.number, team.needRemedy) for team in [self.gameState.us] + self.gameState.opponents)
+      twoHundredsPlayed = dict((team.number, team.twoHundredsPlayed) for team in [self.gameState.us] + self.gameState.opponents)
+
+      tripCompletedBy = None
+      deck = []
+      for (card, qty) in self.cardsUnseen.iteritems():
+        for _ in xrange(qty):
+          deck.append(card)
+
+      turnsElapsed = 1
+      while len(deck) > 0:
+        for currentTurnTeam in [self.gameState.us] + self.gameState.opponents:
+          if len(deck) == 0:
+            break
+
+          teamNo = currentTurnTeam.number
+          for playerNum in currentTurnTeam.playerNumbers:
+            if tripCompletedBy == playerNum:
+              deck = []
+              break
+            card = random.choice(deck)
+            deck.remove(card)
+
+            cardType = Cards.cardToType(card)
+            if Cards.cardToType(card) != Cards.MILEAGE:
+              if card == Cards.REMEDY_GO:
+                moving[teamNo] = True
+                if needRemedy[teamNo] == Cards.REMEDY_GO:
+                  needRemedy[teamNo] = None
+              elif needRemedy[teamNo]:
+                if ((cardType == Cards.SAFETY and Cards.remedyToSafety(needRemedy[teamNo]) == card) or
+                    (cardType == Cards.REMEDY and needRemedy[teamNo] == card)):
+                  needRemedy[teamNo] = None
+            else:
+              mileage = Cards.cardToMileage(card)
+              if mileage == 200 and twoHundredsPlayed[teamNo] >= 2:
+                continue
+              elif mileage > needMileage[teamNo]:
+                continue
+              elif mileage == 200:
+                twoHundredsPlayed[teamNo] += 1
+
+              needMileage[teamNo] -= mileage
+
+            if needMileage[teamNo] == 0 and moving[teamNo] and not needRemedy[teamNo]:
+              tripCompletedBy = playerNum
+              break
+        turnsElapsed += 1
+
+      result = [turnsElapsed]
+      for i in xrange(len(self.gameState.opponents) + 1):
+        if i == self.gameState.us.number:
+          team = self.gameState.us
+        else:
+          team = self.gameState.teamNumberToTeam(i)
+
+        if needRemedy[i] or not moving[i]:
+          mileage = 1000 - team.mileage
+        else:
+          mileage = needMileage[i]
+        result.append(mileage)
+      results.append(result)
+    return results
+      
+
+  @cacheComputationForTurn
+  def expectedTurnsLeft(self):
+    gameEndTurns = [gameOutcome[0]
+                    for gameOutcome
+                    in self.monteCarloMileageSimulation()]
+    ret = math.ceil(sum(gameEndTurns)/len(gameEndTurns))
+    self.debug("Game is expected to end in %r turns.", ret)
+    return ret
