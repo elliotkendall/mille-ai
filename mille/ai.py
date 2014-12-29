@@ -4,6 +4,10 @@ class AI:
   def makeMove(self, gameState):
     pass
 
+  # Called when you draw a card
+  def cardDrawn(self, card):
+    pass
+
   # Called when another player plays
   def playerPlayed(self, player, move):
     pass
