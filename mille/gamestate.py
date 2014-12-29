@@ -18,6 +18,8 @@ class GameState:
     self.debug = False
 
   def teamNumberToTeam(self, teamNumber):
+    if self.us.number == teamNumber:
+      return self.us
     for opponent in self.opponents:
       if opponent.number == teamNumber:
         return opponent
