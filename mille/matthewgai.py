@@ -796,9 +796,9 @@ class MatthewgAI(AI):
     self.resetCardCount()
 
     ourScore = handScoresByTeam[self._usTeamNumber]
-    avgScore = sum(handScoresByTeam.values()) / len(handScoresByTeam)
+    avgScore = sum(handScoresByTeam) / len(handScoresByTeam)
     fitness = ourScore - avgScore
-    if ourScore == max(handScoresByTeam.values()):
+    if ourScore == max(handScoresByTeam):
       fitness += 5000
 
     fitness_scores = self.__class__.constants.hand_fitness_scores
