@@ -1,5 +1,9 @@
 # Interface that AIs should implement
 class AI:
+  # Called at the start of a game
+  def gameStarted(self, gameState):
+    pass
+
   # Make a move on your turn
   def makeMove(self, gameState):
     pass
@@ -12,7 +16,15 @@ class AI:
   def playerPlayed(self, player, move):
     pass
 
+  # scoreSummary is a human-readable string describing the hand scores.
   def handEnded(self, scoreSummary):
+    pass
+
+  # handScoresByTeam is a list of hand scores, one per team.  Team i's
+  # hand score is at handScoresByTeam[i].  Similarly,
+  # totalScoresByTeam is a list of total scores (including points from
+  # the just-ended hand.)
+  def handEnded2(self, handScoresByTeam, totalScoresByTeam):
     pass
 
   # Play a coup fourre?

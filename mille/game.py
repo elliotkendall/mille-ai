@@ -60,6 +60,9 @@ class Game:
     winningscore = 0
     winningteam = -1
 
+    for player in self.players:
+      self.gameStarted(self.makeState(currentPlayer))
+
     while not gameOver:
       # Run a single hand
       self.playHand()
@@ -277,6 +280,8 @@ class Game:
     
     # Now actually figure scores
     scoreSummary = ''
+    handScoresByTeam = []
+    totalScoresByTeam = []
     for team in self.teams:
       scoreSummary += 'Team ' + str(team.number) + "\n"
       team.handScore = team.mileage
@@ -306,6 +311,8 @@ class Game:
           scoreSummary += "  Shut out = 500\n"
       scoreSummary += '  Total: ' + str(team.handScore) + "\n"
       team.totalScore += team.handScore
+      handScoresByTeam.append(team.handScore)
+      totalScoresByTeam.append(team.totalScore)
 
     if self.debug:
       print scoreSummary
@@ -313,6 +320,7 @@ class Game:
     # Notify the players that the hand is over
     for player in self.players:
       player.ai.handEnded(scoreSummary)
+      player.ai.handEnded2(handScoresByTeam, totalScoresByTeam)
 
   def notifyPlayers(self, movingPlayer, move):
     for player in self.players:
@@ -342,13 +350,14 @@ class Game:
     # "accidentally" get modified by the AIs
     state.hand = copy(player.hand)
     state.discardPile = copy(self.discardPile)
+    state.teams = deepcopy(self.teams)
     state.us = copy(self.teams[player.teamNumber])
-    state.opponents = copy(self.teams)
     state.opponents = deepcopy(self.teams)
     del state.opponents[(player.teamNumber)]
     # Passed by value, doesn't need copying
     state.target = self.target
     state.cardsLeft = self.deck.cardsLeft()
+    state.playerCount = len(self.players)
     return state
 
   def draw(self, player, count = 1):
