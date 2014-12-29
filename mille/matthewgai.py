@@ -3,18 +3,14 @@ matthewg@zevils.com 's entry in the Mille Bornes AI competition.
 
 TODOs from the web:
 * Tweak discard strategy.
-* "Safe trip" bonus for no 200s.
+* "Safe trip" bonus for no 200s. -- make this more sophisticated
 * Factor in number of points left in game, not just miles left in hand.
 * Extension strategy: Factor in how many hazards and remedies in hand,
   mileage cards left in deck, mileage of opponents, points left in game.
   (Also, safeties that opponents have out.)
-* Don't horde for CF as aggressively.  Want the bonus for getting safeties out.
 * Delay ending game to get out safeties, run out the deck?
 * Prioritize Go over attack?
-* Use card counting: If all of an attack are out, discard the remedy.
 * Save low-mileage cards for endgame.
-* Watch opponent discards: If they discard remedies, they probably have the safety.
-* There's only one of each safety, so if one opponent has it, nobody else will.
 
 """
 from __future__ import division  # / == float, // == int
@@ -38,6 +34,9 @@ class Constants(object):
   ATTACK_QUALITY_MOD_STOP = 0.25
   ATTACK_QUALITY_MOD_LIMIT = 0.25
   DUPE_PENALTY_FACTOR = 3
+  SAFE_TRIP_FACTOR = 0.4
+  AGGRESSIVENESS = 1.0
+  MILEAGE_BOOST = 1.2
 
   @classmethod
   def toTuple(klass):
@@ -46,7 +45,10 @@ class Constants(object):
             klass.SAFETY_HORDE_FACTOR,
             klass.ATTACK_QUALITY_MOD_STOP,
             klass.ATTACK_QUALITY_MOD_LIMIT,
-            klass.DUPE_PENALTY_FACTOR)
+            klass.DUPE_PENALTY_FACTOR,
+            klass.SAFE_TRIP_FACTOR,
+            klass.AGGRESSIVENESS,
+            klass.MILEAGE_BOOST)
 
 
 def cacheComputationForTurn(fn):
@@ -202,13 +204,19 @@ class MatthewgAI(AI):
       # and avoid playing a 25 unless we need it.
       value = self.mileageCardValue(card)
       mileage = Cards.cardToMileage(card)
+
+      if mileage == 200 and self.gameState.us.twoHundredsPlayed == 0:
+        safeTripFactor = Constants.SAFE_TRIP_FACTOR
+      else:
+        safeTripFactor = 1.0
+
       if mileage == self.gameState.target - self.gameState.us.mileage:
-        return 1.0
+        return 1.0 * safeTripFactor
       elif mileage == 25 and len([card for card in discardCards if card == card]) < 2:
         # Don't play our last 25km (unless we need to).
         return 0.0
       else:
-        return value
+        return value * safeTripFactor
     elif cardType == Cards.REMEDY:
       if card == Cards.REMEDY_END_OF_LIMIT and not self.gameState.us.speedLimit:
         return 0.0
@@ -243,7 +251,8 @@ class MatthewgAI(AI):
       return ((1 - self.chanceOpponentHasProtection(target, card)) *
               self.chanceTeamWillWin(target) *
               self.chanceTeamWillCompleteTrip(target) *
-              attackQualityModifier)
+              attackQualityModifier *
+              Constants.AGGRESSIVENESS)
 
 
     # than playing them outright, so that we can save safeties for coup fourre.
@@ -262,8 +271,7 @@ class MatthewgAI(AI):
     # (600/5000=12% done).  And the trip is currently at 900km (100km remaining), and playing this mileage
     # card will get us to 1000k (100% of remaining distance.)  Value of playing this move is:
     #   1.00 * 0.12
-    # TODO: This should be even more valuable, because it eliminates the possibility of future attacks.
-    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us)
+    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us) * Constants.MILEAGE_BOOST
     self.debug("Value of %dkm: %r, since it covers %r of remaining trip distance.",
                Cards.cardToMileage(card),
                ret,
@@ -432,8 +440,6 @@ class MatthewgAI(AI):
                    team.number)
         ret = 0.0
       else:
-        # TODO: Factor in how close everyone is to finishing the trip,
-        # and how many cards are left in the deck.
         ret = min(1.0,
                   (validMileagePct *
                    (unseenTotalMileage / needMileage) *
