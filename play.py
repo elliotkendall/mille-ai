@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+import time
 from sys import exit
+from mille.matthewgai import Constants
 from mille.matthewgai import MatthewgAI
 from mille.sampleais import *
 from mille.game import Game
@@ -9,8 +11,9 @@ from mille.cards import Cards
 
 competitors = [MatthewgAI, BasicAI]
 numPlayers = 2
-games = 100
+games = 10000
 debug = False
+Constants.DEBUG = True
 
 # End configurable parameters
 
@@ -23,12 +26,16 @@ for i in range(numPlayers):
     competitor = 0
 
 scores = {}
-for i in range(games):
+gamesPlayed = 0
+startTime = time.time()
+while True:
   g = Game(players, debug)
   winners = g.play()
   for winner in winners:
     if not scores.has_key(winner):
       scores[winner] = 0
     scores[winner] += 1
+  gamesPlayed += 1
+  print "Played %d games in %d seconds." % (gamesPlayed, int(time.time() - startTime))
 
 print scores

@@ -22,11 +22,43 @@ from mille.game import Game
 from mille.move import Move
 
 import collections
+import csv
 import math
+import os
 import random
+import re
 
 
 class Constants(object):
+  DEBUG = False
+
+  @classmethod
+  def debug(klass, msg, *args):
+    if klass.DEBUG:
+      print msg % tuple(arg() if callable(arg) else arg
+                        for arg in args)    
+
+  @classmethod
+  def populationFile(klass, playerCount):
+    return os.path.join(os.path.dirname(__file__),
+                        "matthewgai_population_%d" % playerCount)
+
+  @classmethod
+  def savePopulation(klass, playerCount, population):
+    with open(klass.populationFile(playerCount), "w") as f:
+      csvWriter = csv.writer(f)
+      for (member, fitness) in population:
+        csvWriter.writerow((fitness,) + member.toTuple())
+
+  @classmethod
+  def loadPopulation(klass, playerCount):
+    population = []
+    with open(klass.populationFile(playerCount), "r") as f:
+      csvReader = csv.reader(f)
+      for line in csvReader:
+        population.append((klass(*map(float, line[1:])), float(line[0])))
+    return population
+
   def __init__(self,
                remedy_discard_boost,
                discard_move_value_penalty,
@@ -47,6 +79,11 @@ class Constants(object):
     self.aggressiveness = aggressiveness
     self.mileage_boost = mileage_boost
 
+    self.hand_fitness_scores = []
+
+  def clone(self):
+    return self.__class__(*self.toTuple())
+
   def toTuple(self):
     return (self.remedy_discard_boost,
             self.discard_move_value_penalty,
@@ -58,7 +95,14 @@ class Constants(object):
             self.aggressiveness,
             self.mileage_boost)
 
-CONSTANTS_FOR_PLAYERCOUNT = {
+CONSTANT_POPULATIONS_FOR_PLAYERCOUNT = {
+  2: Constants.loadPopulation(2),
+  3: Constants.loadPopulation(3),
+  4: Constants.loadPopulation(4),
+  6: Constants.loadPopulation(6),
+}
+
+INITIAL_CONSTANTS_FOR_PLAYERCOUNT = {
   2: Constants(remedy_discard_boost = 1.5,
                discard_move_value_penalty = 0.001,
                safety_horde_factor = 0.6,
@@ -101,6 +145,61 @@ CONSTANTS_FOR_PLAYERCOUNT = {
                ),
 }
 
+def ConstantsForPlayerCount(playerCount):
+  if not CONSTANT_POPULATIONS_FOR_PLAYERCOUNT[playerCount]:
+    adam = INITIAL_CONSTANTS_FOR_PLAYERCOUNT[playerCount].toTuple()
+    steve = adam
+    population = []
+  else:
+    population = CONSTANT_POPULATIONS_FOR_PLAYERCOUNT[playerCount]
+    # Sort population by fitness.
+    population.sort(key=lambda c: c[1])
+    # Enforce population cap.
+    population = population[0:1000]
+    Constants.debug("Population for %d:\n%s\n",
+                    playerCount,
+                    lambda: "".join(map(lambda p: "  %r: %r\n" % (p[1],
+                                                                  p[0].toTuple()),
+                                        population)))
+    Constants.savePopulation(playerCount, population)
+
+    # Pick two individuals to breed.  Generate two random numbers in
+    # the range [0, totalFitness).  For each number, start at the
+    # least-fit member and keep going until we've seen that much
+    # fitness.
+    totalFitness = 0  # Bally!
+    for member in population:
+      totalFitness += member[1]
+
+    def lookingForMisterGoodConstant():
+      luckyNumber = random.choice(range(int(totalFitness)))
+      seenFitness = 0
+      for (c, fitness) in population:
+        seenFitness += fitness
+        if seenFitness >= luckyNumber:
+          return c
+      return population[-1][0]
+    adam = lookingForMisterGoodConstant().toTuple()
+    steve = lookingForMisterGoodConstant().toTuple()
+
+  # Set mutation rate high at first to generate a diverse initial population.
+  # ...well, at *very* first, set it to 0 so that we get a reasonable baseline.
+  if len(population) < 10:
+    mutationOdds = 0.0
+  elif len(population) < 900:
+    mutationOdds = 0.25
+  else:
+    mutationOdds = 0.05
+
+  darlingBundleOfJoy = []
+  for i in xrange(len(adam)):
+    darlingBundleOfJoy.append((adam[i]+steve[i])/2)
+    if random.random() < mutationOdds:
+      # Two eyes good, three eyes better?
+      darlingBundleOfJoy[-1] *= random.choice([0, 1]) + random.choice([7, 8, 9])/10
+  Constants.debug("Bred %r and %r to produce %r -- mazel tov, it's a tuple!",
+                  adam, steve, darlingBundleOfJoy)
+  return Constants(*darlingBundleOfJoy)
 
 def cacheComputationForTurn(fn):
   def _callOncePerTurn(ai, *args, **kwargs):
@@ -116,12 +215,13 @@ def cacheComputationForTurn(fn):
 
 
 class MatthewgAI(AI):
+  constants = None
+  constants_playercount = None
 
   def __init__(self):
     self.resetCardCount()
     self.resetTurnCache()
     self.gameState = None
-    self.constants = None
 
   def debug(self, msg, *args):
     if self.gameState and self.gameState.debug:
@@ -205,7 +305,7 @@ class MatthewgAI(AI):
     for player in team.playerNumbers:
       for _ in xrange(self.interestingRemedyDiscardsByPlayer[player][remedy]):
         remedyDiscards += 1
-        odds *= self.constants.remedy_discard_boost
+        odds *= self.__class__.constants.remedy_discard_boost
 
     self.debug("Team %d protection odds %r v. %s, based on %d safety %d remedy %d discards.",
                team.number,
@@ -220,7 +320,14 @@ class MatthewgAI(AI):
   def makeMove(self, gameState):
     self.resetTurnCache()
     self.gameState = gameState
-    self.constants = CONSTANTS_FOR_PLAYERCOUNT[self.playerCount()]
+    if not self.__class__.constants or self.__class__.constants_playercount != self.playerCount():
+      self.__class__.constants = ConstantsForPlayerCount(self.playerCount())
+      self.__class__.constants_playercount = self.playerCount()
+
+    # Data we want available during hand score evaluation, when gamestate is absent.
+    self.usTeamNumber = self.gameState.us.number
+    self._playerCount = self.playerCount()
+
     try:
       moves = self.gameState.validMoves
       discardCards = [move.card
@@ -252,7 +359,7 @@ class MatthewgAI(AI):
     if move.type == Move.DISCARD:
       cardValue = self.cardValue(card, discardIdx, discardCards)
       # TODO: Factor in expected value of replacement card.
-      return (1 - cardValue) * self.constants.discard_move_value_penalty
+      return (1 - cardValue) * self.__class__.constants.discard_move_value_penalty
 
     # TODO: Factor in "safe trip" cost of playing 200km,
     # "shutout" cost of failing to play an attack,
@@ -267,7 +374,7 @@ class MatthewgAI(AI):
       mileage = Cards.cardToMileage(card)
 
       if mileage == 200 and self.gameState.us.twoHundredsPlayed == 0:
-        safeTripFactor = self.constants.safe_trip_factor
+        safeTripFactor = self.__class__.constants.safe_trip_factor
       else:
         safeTripFactor = 1.0
 
@@ -285,7 +392,7 @@ class MatthewgAI(AI):
       # If we need a remedy to move, and we have that remedy, it's a rather strong play!
       return 1.0
     elif cardType == Cards.SAFETY:
-      return self.constants.safety_horde_factor
+      return self.__class__.constants.safety_horde_factor
     elif cardType == Cards.ATTACK:
       target = self.gameState.teamNumberToTeam(move.target)
       if card == Cards.ATTACK_SPEED_LIMIT:
@@ -302,9 +409,9 @@ class MatthewgAI(AI):
       # TODO: Balance these, and also factor in chance opponent can get protection in the future.
       # And also factor in trip distance remaining for speed limit.
       if card == Cards.ATTACK_STOP:
-        attackQualityModifier = self.constants.attack_quality_mod_stop
+        attackQualityModifier = self.__class__.constants.attack_quality_mod_stop
       elif card == Cards.ATTACK_SPEED_LIMIT:
-        attackQualityModifier = self.constants.attack_quality_mod_limit
+        attackQualityModifier = self.__class__.constants.attack_quality_mod_limit
       else:
         attackQualityModifier = 1.0
 
@@ -313,7 +420,7 @@ class MatthewgAI(AI):
               self.chanceTeamWillWin(target) *
               self.chanceTeamWillCompleteTrip(target) *
               attackQualityModifier *
-              self.constants.aggressiveness)
+              self.__class__.constants.aggressiveness)
 
 
     # than playing them outright, so that we can save safeties for coup fourre.
@@ -332,7 +439,7 @@ class MatthewgAI(AI):
     # (600/5000=12% done).  And the trip is currently at 900km (100km remaining), and playing this mileage
     # card will get us to 1000k (100% of remaining distance.)  Value of playing this move is:
     #   1.00 * 0.12
-    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us) * self.constants.mileage_boost
+    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us) * self.__class__.constants.mileage_boost
     self.debug("Value of %dkm: %r, since it covers %r of remaining trip distance.",
                Cards.cardToMileage(card),
                ret,
@@ -370,7 +477,7 @@ class MatthewgAI(AI):
     # nearer to 1 (to reduce the severity of the penalty), and then
     # invert again to cancel out the inversion.
     dupeFrac = 1/numDuplicates
-    dupePenaltyFactor = self.constants.dupe_penalty_factor
+    dupePenaltyFactor = self.__class__.constants.dupe_penalty_factor
     dupeCoefficient = 1-(1-dupeFrac)/dupePenaltyFactor
 
     cardType = Cards.cardToType(card)
@@ -693,3 +800,33 @@ class MatthewgAI(AI):
     # This is expensive, and it's more expensive and less useful early in a trip.
     return (self.maxTripPctDone() > 0.75 or
             self.deckExhaustionTurnsLeft() < 10)
+
+
+  def handEnded(self, scoreSummary):
+    scoresByTeam = {}
+    teamNo = None
+    for line in scoreSummary.split("\n"):
+      match = re.match(r'^Team (\d+)$', line)
+      if match:
+        teamNo = int(match.group(1))
+      else:
+        match = re.match(r'^\s+Total: (\d+)$', line)
+        if match:
+          scoresByTeam[teamNo] = int(match.group(1))
+
+    ourScore = scoresByTeam[self.usTeamNumber]
+    avgScore = sum(scoresByTeam.values()) / len(scoresByTeam)
+    fitness = ourScore - avgScore
+    if ourScore == max(scoresByTeam.values()):
+      fitness += 5000
+
+    fitness_scores = self.__class__.constants.hand_fitness_scores
+    fitness_scores.append(fitness)
+    if len(fitness_scores) >= 500:
+      avg_fitness = sum(fitness_scores)/len(fitness_scores)
+      Constants.debug("Determined fitness of %r: %r", self.__class__.constants.toTuple(), avg_fitness)
+      CONSTANT_POPULATIONS_FOR_PLAYERCOUNT[self._playerCount].append(
+        (self.__class__.constants, avg_fitness))
+      self.__class__.constants = None
+    else:
+      Constants.debug("Still determining fitness, played %d hands.", len(fitness_scores))
