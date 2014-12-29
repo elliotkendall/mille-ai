@@ -274,9 +274,6 @@ class MatthewgAI(AI):
   def cardDrawn(self, card):
     self.cardSeen(card)
 
-  def handEnded(self, scoreSummary):
-    self.resetCardCount()
-
   @cacheComputationForTurn
   def chanceOpponentHasProtection(self, team, attack):
     # Chance that a particular opponent has protection from a particular attack in their hand.
@@ -308,17 +305,18 @@ class MatthewgAI(AI):
                remedyDiscards)
     return odds
 
+  def gameStarted(self, gameState):
+    # Data we want available during hand score evaluation, when gamestate is absent.
+    self._usTeamNumber = gameState.us.number
+    self._playerCount = gameState.playerCount
 
   def makeMove(self, gameState):
+    if not self.__class__.constants or self.__class__.constants_playercount != gameState.playerCount:
+      self.__class__.constants = ConstantsForPlayerCount(gameState.playerCount)
+      self.__class__.constants_playercount = gameState.playerCount
+
     self.resetTurnCache()
     self.gameState = gameState
-    if not self.__class__.constants or self.__class__.constants_playercount != self.gameState.playerCount:
-      self.__class__.constants = ConstantsForPlayerCount(self.gameState.playerCount)
-      self.__class__.constants_playercount = self.gameState.playerCount
-
-    # Data we want available during hand score evaluation, when gamestate is absent.
-    self.usTeamNumber = self.gameState.us.number
-    self._playerCount = self.gameState.playerCount
 
     try:
       moves = self.gameState.validMoves
@@ -794,22 +792,13 @@ class MatthewgAI(AI):
             self.deckExhaustionTurnsLeft() < 10)
 
 
-  def handEnded(self, scoreSummary):
-    scoresByTeam = {}
-    teamNo = None
-    for line in scoreSummary.split("\n"):
-      match = re.match(r'^Team (\d+)$', line)
-      if match:
-        teamNo = int(match.group(1))
-      else:
-        match = re.match(r'^\s+Total: (\d+)$', line)
-        if match:
-          scoresByTeam[teamNo] = int(match.group(1))
+  def handEnded2(self, handScoresByTeam, totalScoresByTeam):
+    self.resetCardCount()
 
-    ourScore = scoresByTeam[self.usTeamNumber]
-    avgScore = sum(scoresByTeam.values()) / len(scoresByTeam)
+    ourScore = handScoresByTeam[self._usTeamNumber]
+    avgScore = sum(handScoresByTeam.values()) / len(handScoresByTeam)
     fitness = ourScore - avgScore
-    if ourScore == max(scoresByTeam.values()):
+    if ourScore == max(handScoresByTeam.values()):
       fitness += 5000
 
     fitness_scores = self.__class__.constants.hand_fitness_scores
