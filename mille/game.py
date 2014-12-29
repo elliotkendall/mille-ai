@@ -88,9 +88,6 @@ class Game:
     for player in self.players:
       player.ai.gameStarted(self.makeState(player))
 
-    for player in self.players:
-      self.gameStarted(self.makeState(currentPlayer))
-
     while not gameOver:
       # Run a single hand
       self.playHand()
@@ -128,10 +125,6 @@ class Game:
     for player in self.players:
       player.hand = self.draw(player, 6)
       player.hand = self.deck.draw(player, 6)
-
-    # Reset per-hand team variables
-    for team in self.teams:
-      team.reset()
 
     currentPlayerNumber = 0
     # Normally this is currentPlayerNumber + 1, but in the case of a coup
@@ -382,7 +375,7 @@ class Game:
   def draw(self, player, count = 1):
     cards = self.deck.draw(count)
     if count == 1:
-      player.ai.cardDrawn(cards)
+      self.ai.cardDrawn(cards)
     else:
       for card in cards:
         player.ai.cardDrawn(card)
