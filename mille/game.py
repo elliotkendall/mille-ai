@@ -51,7 +51,28 @@ class Game:
   def reset(self):
     for team in self.teams:
       team.totalScore = 0
-  
+
+  # Prepare this object for a new hand
+  def resetHandState(self):
+    self.winner = -1
+    self.tripComplete = False
+    self.delayedAction = False
+    self.extension = False
+    self.discardPile = []
+    if len(self.players) == 4:
+      self.target = 1000
+      self.extensionPossible = False
+    else:
+      self.target = 700
+      self.extensionPossible = True
+    self.deck = Deck()
+    # No hands yet.
+    for player in self.players:
+      player.hand = []
+    # Reset per-hand team variables
+    for team in self.teams:
+      team.reset()
+
   # Run a complete game
   #
   # Returns a list of winning player numbers
@@ -59,9 +80,10 @@ class Game:
     gameOver = False
     winningscore = 0
     winningteam = -1
+    self.resetHandState()
 
     for player in self.players:
-      self.gameStarted(self.makeState(currentPlayer))
+      player.ai.gameStarted(self.makeState(player))
 
     while not gameOver:
       # Run a single hand
@@ -91,17 +113,7 @@ class Game:
 
   # Play a single hand
   def playHand(self):
-    self.winner = -1
-    self.tripComplete = False
-    self.delayedAction = False
-    self.extension = False
-    self.discardPile = []
-    if len(self.players) == 4:
-      self.target = 1000
-      self.extensionPossible = False
-    else:
-      self.target = 700
-      self.extensionPossible = True
+    self.resetHandState()
 
     # Fresh deck
     self.deck = Deck()
@@ -109,10 +121,6 @@ class Game:
     # Deal hands
     for player in self.players:
       player.hand = self.draw(player, 6)
-
-    # Reset per-hand team variables
-    for team in self.teams:
-      team.reset()
 
     currentPlayerNumber = 0
     # Normally this is currentPlayerNumber + 1, but in the case of a coup
@@ -363,7 +371,7 @@ class Game:
   def draw(self, player, count = 1):
     cards = self.deck.draw(count)
     if count == 1:
-      player.ai.cardDrawn(cards)
+      self.ai.cardDrawn(cards)
     else:
       for card in cards:
         player.ai.cardDrawn(card)
