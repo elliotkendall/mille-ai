@@ -30,6 +30,25 @@ import math
 import random
 
 
+class Constants(object):
+  REMEDY_DISCARD_BOOST = 1.5
+  DISCARD_MOVE_VALUE_PENALTY = 0.001
+  # Adjust this to control how tightly we horde safeties for CF.
+  SAFETY_HORDE_FACTOR = 0.6
+  ATTACK_QUALITY_MOD_STOP = 0.25
+  ATTACK_QUALITY_MOD_LIMIT = 0.25
+  DUPE_PENALTY_FACTOR = 3
+
+  @classmethod
+  def toTuple(klass):
+    return (klass.REMEDY_DISCARD_BOOST,
+            klass.DISCARD_MOVE_VALUE_PENALTY,
+            klass.SAFETY_HORDE_FACTOR,
+            klass.ATTACK_QUALITY_MOD_STOP,
+            klass.ATTACK_QUALITY_MOD_LIMIT,
+            klass.DUPE_PENALTY_FACTOR)
+
+
 def cacheComputationForTurn(fn):
   def _callOncePerTurn(ai, *args, **kwargs):
     # Flatten kwargs into a tuple of (k1, v1, k2, v2, ..., kn, vn)
@@ -124,7 +143,7 @@ class MatthewgAI(AI):
     for player in team.playerNumbers:
       for _ in xrange(self.interestingRemedyDiscardsByPlayer[player][remedy]):
         remedyDiscards += 1
-        odds *= 1.5
+        odds *= Constants.REMEDY_DISCARD_BOOST
 
     self.debug("Team %d protection odds %r v. %s, based on %d safety %d remedy %d discards.",
                team.number,
@@ -170,7 +189,7 @@ class MatthewgAI(AI):
     if move.type == Move.DISCARD:
       cardValue = self.cardValue(card, discardIdx, discardCards)
       # TODO: Factor in expected value of replacement card.
-      return (1 - cardValue) * 0.001
+      return (1 - cardValue) * Constants.DISCARD_MOVE_VALUE_PENALTY
 
     # TODO: Factor in "safe trip" cost of playing 200km,
     # "shutout" cost of failing to play an attack,
@@ -197,8 +216,7 @@ class MatthewgAI(AI):
       # If we need a remedy to move, and we have that remedy, it's a rather strong play!
       return 1.0
     elif cardType == Cards.SAFETY:
-      # Adjust this to control how tightly we horde safeties for CF.
-      return 0.6
+      return Constants.SAFETY_HORDE_FACTOR
     elif cardType == Cards.ATTACK:
       target = self.gameState.teamNumberToTeam(move.target)
       if card == Cards.ATTACK_SPEED_LIMIT:
@@ -215,9 +233,9 @@ class MatthewgAI(AI):
       # TODO: Balance these, and also factor in chance opponent can get protection in the future.
       # And also factor in trip distance remaining for speed limit.
       if card == Cards.ATTACK_STOP:
-        attackQualityModifier = 0.25
+        attackQualityModifier = Constants.ATTACK_QUALITY_MOD_STOP
       elif card == Cards.ATTACK_SPEED_LIMIT:
-        attackQualityModifier = 0.25
+        attackQualityModifier = Constants.ATTACK_QUALITY_MOD_LIMIT
       else:
         attackQualityModifier = 1.0
 
@@ -283,7 +301,7 @@ class MatthewgAI(AI):
     # nearer to 1 (to reduce the severity of the penalty), and then
     # invert again to cancel out the inversion.
     dupeFrac = 1/numDuplicates
-    dupePenaltyFactor = 3
+    dupePenaltyFactor = Constants.DUPE_PENALTY_FACTOR
     dupeCoefficient = 1-(1-dupeFrac)/dupePenaltyFactor
 
     cardType = Cards.cardToType(card)
