@@ -8,7 +8,7 @@ class AI:
   def cardDrawn(self, card):
     pass
 
-  # Called when any other player plays
+  # Called when another player plays
   def playerPlayed(self, player, move):
     pass
 
