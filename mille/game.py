@@ -340,8 +340,7 @@ class Game:
 
   def notifyPlayers(self, movingPlayer, move):
     for player in self.players:
-      if movingPlayer.number != player.number:
-        player.ai.playerPlayed(movingPlayer, move)
+      player.ai.playerPlayed(movingPlayer, move)
 
   # This is a separate method since it gets called from two places in
   # playHand()
