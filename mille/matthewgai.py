@@ -367,16 +367,71 @@ class MatthewgAI(AI):
 
   @cacheComputationForTurn
   def chanceTeamWillCompleteTrip(self, team):
-    teamResults = [result[team.number + 1]
-                   for result
-                   in self.monteCarloMileageSimulation()]
-    completionCount = 0
-    for result in teamResults:
-      if result == 0:
-        completionCount += 1
-    ret = completionCount/len(teamResults)
-    self.debug("%r chance that %d will complete trip (%d/%d)",
-               ret, team.number, completionCount, len(teamResults))
+    if self.useMonteCarloSimulation():
+      self.debug("Using monte carlo method for team trip completion estimate.")
+      teamResults = [result[team.number + 1]
+                     for result
+                     in self.monteCarloMileageSimulation()]
+      completionCount = 0
+      for result in teamResults:
+        if result == 0:
+          completionCount += 1
+      ret = completionCount/len(teamResults)
+      self.debug("%r chance that %d will complete trip (%d/%d)",
+                 ret, team.number, completionCount, len(teamResults))
+    else:
+      self.debug("Using card-counting method for team trip completion estimate.")
+      turnsLeft = self.deckExhaustionTurnsLeft()
+      playersOnTeam = len(team.playerNumbers)
+      teamMovesLeft = turnsLeft * playersOnTeam
+
+      if team.moving:
+        goCoeff = 1.0
+      else:
+        goCoeff = min(1.0, self.percentOfCardsRemaining(Cards.REMEDY_GO) * teamMovesLeft)
+
+      if team.needRemedy and team.needRemedy != Cards.REMEDY_GO:
+        remedyCoeff = min(1.0, self.percentOfCardsRemaining(
+            team.needRemedy,
+            Cards.remedyToSafety(team.needRemedy)) * teamMovesLeft)
+      else:
+        remedyCoeff = 1.0
+
+      if goCoeff == 0.0 or remedyCoeff == 0.0:
+        self.debug("Team %d can't complete trip due to remedy unavailable.", team.number)
+        return 0.0
+
+      needMileage = 1000 - team.mileage
+      validMileageCards = [card
+                           for card in Cards.MILEAGE_CARDS
+                           if Cards.cardToMileage(card) <= needMileage]
+      validMileageCards.sort(reverse=True)
+      validMileagePct = self.percentOfCardsRemaining(*validMileageCards)
+      unseenTotalMileage = sum([Cards.cardToMileage(card) * self.cardsUnseen[card]
+                                for card in validMileageCards])
+      if unseenTotalMileage < needMileage:
+        self.debug("Not enough mileage left in deck for team %d to complete trip.",
+                   team.number)
+        ret = 0.0
+      else:
+        # TODO: Factor in how close everyone is to finishing the trip,
+        # and how many cards are left in the deck.
+        ret = min(1.0,
+                  (validMileagePct *
+                   (unseenTotalMileage / needMileage) *
+                   teamMovesLeft *
+                   remedyCoeff *
+                   goCoeff))
+        self.debug("Team %d has %r of trip completion, based on crude card count: %r * (%r / %r) * %r * %r * %r",
+                   team.number,
+                   ret,
+                   validMileagePct,
+                   unseenTotalMileage,
+                   needMileage,
+                   teamMovesLeft,
+                   remedyCoeff,
+                   goCoeff)
+
     return ret
 
   @cacheComputationForTurn
@@ -435,57 +490,73 @@ class MatthewgAI(AI):
     # Returns a list of many (turns elapsed, team 0 trip mileage remaining, team 1 trip remaining, ...)
     # TODO: Assumes extension.
     results = []
-    # TODO: Speed this up, and/or be smarter when it's early in the trip, and bump up the number of iterations!
-    for _ in xrange(10):
+    for _ in xrange(100):
       needMileage = dict((team.number, team.mileage) for team in [self.gameState.us] + self.gameState.opponents)
       moving = dict((team.number, team.moving) for team in [self.gameState.us] + self.gameState.opponents)
       needRemedy = dict((team.number, team.needRemedy) for team in [self.gameState.us] + self.gameState.opponents)
       twoHundredsPlayed = dict((team.number, team.twoHundredsPlayed) for team in [self.gameState.us] + self.gameState.opponents)
 
       tripCompletedBy = None
-      deck = []
+      deck = collections.deque()
       for (card, qty) in self.cardsUnseen.iteritems():
         for _ in xrange(qty):
           deck.append(card)
+      random.shuffle(deck)
 
       turnsElapsed = 1
-      while len(deck) > 0:
+      while deck:
         for currentTurnTeam in [self.gameState.us] + self.gameState.opponents:
-          if len(deck) == 0:
+          if not deck:
             break
 
           teamNo = currentTurnTeam.number
+          teamNeedMileage = needMileage[teamNo]
+          teamNeedRemedy = needRemedy[teamNo]
+          teamMoving = moving[teamNo]
+          teamTwoHundredsPlayed = twoHundredsPlayed[teamNo]
+          if teamNeedRemedy:
+            teamNeedSafety = Cards.remedyToSafety(teamNeedRemedy)
+          else:
+            teamNeedSafety = None
+
           for playerNum in currentTurnTeam.playerNumbers:
             if tripCompletedBy == playerNum:
-              deck = []
+              deck = None
               break
-            card = random.choice(deck)
-            deck.remove(card)
+            if not deck:
+              break
 
+            card = deck.pop()
             cardType = Cards.cardToType(card)
             if Cards.cardToType(card) != Cards.MILEAGE:
               if card == Cards.REMEDY_GO:
-                moving[teamNo] = True
-                if needRemedy[teamNo] == Cards.REMEDY_GO:
-                  needRemedy[teamNo] = None
-              elif needRemedy[teamNo]:
-                if ((cardType == Cards.SAFETY and Cards.remedyToSafety(needRemedy[teamNo]) == card) or
+                teamMoving = True
+                if teamNeedRemedy == Cards.REMEDY_GO:
+                  teamNeedRemedy = None
+              elif teamNeedRemedy:
+                if ((cardType == Cards.SAFETY and teamNeedSafety == card) or
                     (cardType == Cards.REMEDY and needRemedy[teamNo] == card)):
-                  needRemedy[teamNo] = None
+                  teamNeedRemedy = None
             else:
               mileage = Cards.cardToMileage(card)
-              if mileage == 200 and twoHundredsPlayed[teamNo] >= 2:
+              if mileage == 200 and teamTwoHundredsPlayed >= 2:
                 continue
-              elif mileage > needMileage[teamNo]:
+              elif mileage > teamNeedMileage:
                 continue
               elif mileage == 200:
-                twoHundredsPlayed[teamNo] += 1
+                teamTwoHundredsPlayed += 1
 
-              needMileage[teamNo] -= mileage
+              teamNeedMileage -= mileage
 
-            if needMileage[teamNo] == 0 and moving[teamNo] and not needRemedy[teamNo]:
+            if teamNeedMileage == 0 and teamMoving and not teamNeedRemedy:
               tripCompletedBy = playerNum
               break
+
+          needMileage[teamNo] = teamNeedMileage
+          needRemedy[teamNo] = teamNeedRemedy
+          moving[teamNo] = teamMoving
+          twoHundredsPlayed[teamNo] = teamTwoHundredsPlayed
+
         turnsElapsed += 1
 
       result = [turnsElapsed]
@@ -502,13 +573,41 @@ class MatthewgAI(AI):
         result.append(mileage)
       results.append(result)
     return results
-      
+
+  @cacheComputationForTurn
+  def maxTripPctDone(self):
+    # TODO: Assumes extension.
+    ret = max(map(lambda team: team.mileage,
+                  [self.gameState.us] + self.gameState.opponents)) / 1000.0
+    self.debug("Max trip pct done: %r", ret)
+    return ret
 
   @cacheComputationForTurn
   def expectedTurnsLeft(self):
+    maxTripPctDone = self.maxTripPctDone()
+    self.debug("Max trip percent done: %r", maxTripPctDone)
+    if self.useMonteCarloSimulation():
+      deckExhaustionTurns = self.deckExhaustionTurnsLeft()
+      return deckExhaustionTurns
+
     gameEndTurns = [gameOutcome[0]
                     for gameOutcome
                     in self.monteCarloMileageSimulation()]
     ret = math.ceil(sum(gameEndTurns)/len(gameEndTurns))
     self.debug("Game is expected to end in %r turns.", ret)
     return ret
+
+  @cacheComputationForTurn
+  def deckExhaustionTurnsLeft(self):
+    playerCount = sum(map(lambda team: len(team.playerNumbers),
+                          [self.gameState.us] + self.gameState.opponents))
+    ret = math.ceil(self.gameState.cardsLeft / playerCount)
+    self.debug("%d turns until deck exhaustion (%d players, %d cards left)",
+               ret, playerCount, self.gameState.cardsLeft)
+    return ret
+
+  @cacheComputationForTurn
+  def useMonteCarloSimulation(self):
+    # This is expensive, and it's more expensive and less useful early in a trip.
+    return (self.maxTripPctDone() > 0.75 or
+            self.deckExhaustionTurnsLeft() < 10)
