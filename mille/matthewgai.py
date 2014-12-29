@@ -126,6 +126,14 @@ class MatthewgAI(AI):
     self.resetCardCount()
 
   @cacheComputationForTurn
+  def teams(self):
+    return [self.gameState.us] + self.gameState.opponents
+
+  @cacheComputationForTurn
+  def playerCount(self):
+    return sum(map(lambda team: len(team.playerNumbers), self.teams()))
+
+  @cacheComputationForTurn
   def chanceOpponentHasProtection(self, team, attack):
     # Chance that a particular opponent has protection from a particular attack in their hand.
     safety = Cards.attackToSafety(attack)
@@ -474,8 +482,8 @@ class MatthewgAI(AI):
     # First, figure out the "game percent done" -- how close
     # to done are we?  The closer we are to done, the more
     # certain we are in predicting the winner.
-    maxScore = max([self.gameState.us.totalScore] +
-                   [opponent.totalScore for opponent in self.gameState.opponents])
+    maxScore = max(map(lambda team: team.totalScore,
+                       self.teams()))
     gamePercentDone = maxScore / Game.pointsToWin
 
     # Next, figure out (based on current score) how likely the player is to win.
@@ -515,10 +523,10 @@ class MatthewgAI(AI):
     # TODO: Assumes extension.
     results = []
     for _ in xrange(100):
-      needMileage = dict((team.number, team.mileage) for team in [self.gameState.us] + self.gameState.opponents)
-      moving = dict((team.number, team.moving) for team in [self.gameState.us] + self.gameState.opponents)
-      needRemedy = dict((team.number, team.needRemedy) for team in [self.gameState.us] + self.gameState.opponents)
-      twoHundredsPlayed = dict((team.number, team.twoHundredsPlayed) for team in [self.gameState.us] + self.gameState.opponents)
+      needMileage = dict((team.number, team.mileage) for team in self.teams())
+      moving = dict((team.number, team.moving) for team in self.teams())
+      needRemedy = dict((team.number, team.needRemedy) for team in self.teams())
+      twoHundredsPlayed = dict((team.number, team.twoHundredsPlayed) for team in self.teams())
 
       tripCompletedBy = None
       deck = collections.deque()
@@ -529,7 +537,7 @@ class MatthewgAI(AI):
 
       turnsElapsed = 1
       while deck:
-        for currentTurnTeam in [self.gameState.us] + self.gameState.opponents:
+        for currentTurnTeam in self.teams():
           if not deck:
             break
 
@@ -601,8 +609,7 @@ class MatthewgAI(AI):
   @cacheComputationForTurn
   def maxTripPctDone(self):
     # TODO: Assumes extension.
-    ret = max(map(lambda team: team.mileage,
-                  [self.gameState.us] + self.gameState.opponents)) / 1000.0
+    ret = max(map(lambda team: team.mileage, self.teams())) / 1000.0
     self.debug("Max trip pct done: %r", ret)
     return ret
 
@@ -623,9 +630,7 @@ class MatthewgAI(AI):
 
   @cacheComputationForTurn
   def deckExhaustionTurnsLeft(self):
-    playerCount = sum(map(lambda team: len(team.playerNumbers),
-                          [self.gameState.us] + self.gameState.opponents))
-    ret = math.ceil(self.gameState.cardsLeft / playerCount)
+    ret = math.ceil(self.gameState.cardsLeft / self.playerCount())
     self.debug("%d turns until deck exhaustion (%d players, %d cards left)",
                ret, playerCount, self.gameState.cardsLeft)
     return ret
