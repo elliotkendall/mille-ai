@@ -18,7 +18,7 @@ class Game:
     self.debug = debug
     
     # Seat players in a random order
-    shuffle(AIs)
+    #shuffle(AIs)
     
     # Set up teams
     count = len(AIs)
@@ -38,7 +38,10 @@ class Game:
       self.players.append(Player())
       self.players[playerNumber].number = playerNumber
       self.players[playerNumber].teamNumber = team
-      self.players[playerNumber].ai = AIs[playerNumber]
+      if team == 0:
+        self.players[playerNumber].ai = AIs[0].__class__()
+      else:
+        self.players[playerNumber].ai = AIs[1].__class__()
       team = team + 1
       if team >= teams:
         team = 0
