@@ -60,6 +60,9 @@ class Game:
     winningscore = 0
     winningteam = -1
 
+    for player in self.players:
+      self.gameStarted(self.makeState(currentPlayer))
+
     while not gameOver:
       # Run a single hand
       self.playHand()

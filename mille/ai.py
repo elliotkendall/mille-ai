@@ -1,5 +1,9 @@
 # Interface that AIs should implement
 class AI:
+  # Called at the start of a game
+  def gameStarted(self, gameState):
+    pass
+
   # Make a move on your turn
   def makeMove(self, gameState):
     pass
