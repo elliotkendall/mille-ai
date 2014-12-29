@@ -371,7 +371,6 @@ class Game:
     state.discardPile = copy(self.discardPile)
     state.teams = deepcopy(self.teams)
     state.us = copy(self.teams[player.teamNumber])
-    state.opponents = copy(self.teams)
     state.opponents = deepcopy(self.teams)
     del state.opponents[(player.teamNumber)]
     # Passed by value, doesn't need copying

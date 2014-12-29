@@ -22,14 +22,6 @@ class GameState:
   def teamNumberToTeam(self, teamNumber):
     return self.teams[teamNumber]
 
-  def teamNumberToTeam(self, teamNumber):
-    if self.us.number == teamNumber:
-      return self.us
-    for opponent in self.opponents:
-      if opponent.number == teamNumber:
-        return opponent
-    raise KeyError(teamNumber)
-
   # Populate our validMoves attribute based on our other information.
   # This should probably be in the Game class instead...
   def findValidPlays(self):
