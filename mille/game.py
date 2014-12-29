@@ -375,7 +375,7 @@ class Game:
   def draw(self, player, count = 1):
     cards = self.deck.draw(count)
     if count == 1:
-      self.ai.cardDrawn(cards)
+      player.ai.cardDrawn(cards)
     else:
       for card in cards:
         player.ai.cardDrawn(card)
