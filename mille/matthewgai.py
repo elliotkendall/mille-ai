@@ -27,28 +27,79 @@ import random
 
 
 class Constants(object):
-  REMEDY_DISCARD_BOOST = 1.5
-  DISCARD_MOVE_VALUE_PENALTY = 0.001
-  # Adjust this to control how tightly we horde safeties for CF.
-  SAFETY_HORDE_FACTOR = 0.6
-  ATTACK_QUALITY_MOD_STOP = 0.25
-  ATTACK_QUALITY_MOD_LIMIT = 0.25
-  DUPE_PENALTY_FACTOR = 3
-  SAFE_TRIP_FACTOR = 0.4
-  AGGRESSIVENESS = 1.0
-  MILEAGE_BOOST = 1.2
+  def __init__(self,
+               remedy_discard_boost,
+               discard_move_value_penalty,
+               safety_horde_factor,
+               attack_quality_mod_stop,
+               attack_quality_mod_limit,
+               dupe_penalty_factor,
+               safe_trip_factor,
+               aggressiveness,
+               mileage_boost):
+    self.remedy_discard_boost = remedy_discard_boost
+    self.discard_move_value_penalty = discard_move_value_penalty
+    self.safety_horde_factor = safety_horde_factor
+    self.attack_quality_mod_stop = attack_quality_mod_stop
+    self.attack_quality_mod_limit = attack_quality_mod_limit
+    self.dupe_penalty_factor = dupe_penalty_factor
+    self.safe_trip_factor = safe_trip_factor
+    self.aggressiveness = aggressiveness
+    self.mileage_boost = mileage_boost
 
-  @classmethod
-  def toTuple(klass):
-    return (klass.REMEDY_DISCARD_BOOST,
-            klass.DISCARD_MOVE_VALUE_PENALTY,
-            klass.SAFETY_HORDE_FACTOR,
-            klass.ATTACK_QUALITY_MOD_STOP,
-            klass.ATTACK_QUALITY_MOD_LIMIT,
-            klass.DUPE_PENALTY_FACTOR,
-            klass.SAFE_TRIP_FACTOR,
-            klass.AGGRESSIVENESS,
-            klass.MILEAGE_BOOST)
+  def toTuple(self):
+    return (self.remedy_discard_boost,
+            self.discard_move_value_penalty,
+            self.safety_horde_factor,
+            self.attack_quality_mod_stop,
+            self.attack_quality_mod_limit,
+            self.dupe_penalty_factor,
+            self.safe_trip_factor,
+            self.aggressiveness,
+            self.mileage_boost)
+
+CONSTANTS_FOR_PLAYERCOUNT = {
+  2: Constants(remedy_discard_boost = 1.5,
+               discard_move_value_penalty = 0.001,
+               safety_horde_factor = 0.6,
+               attack_quality_mod_stop = 0.25,
+               attack_quality_mod_limit = 0.25,
+               dupe_penalty_factor = 3,
+               safe_trip_factor = 0.4,
+               aggressiveness = 1.0,
+               mileage_boost = 1.2,
+               ),
+  3: Constants(remedy_discard_boost = 1.5,
+               discard_move_value_penalty = 0.001,
+               safety_horde_factor = 0.6,
+               attack_quality_mod_stop = 0.25,
+               attack_quality_mod_limit = 0.25,
+               dupe_penalty_factor = 3,
+               safe_trip_factor = 0.4,
+               aggressiveness = 1.0,
+               mileage_boost = 1.2,
+               ),
+  4: Constants(remedy_discard_boost = 1.5,
+               discard_move_value_penalty = 0.001,
+               safety_horde_factor = 0.6,
+               attack_quality_mod_stop = 0.25,
+               attack_quality_mod_limit = 0.25,
+               dupe_penalty_factor = 3,
+               safe_trip_factor = 0.4,
+               aggressiveness = 1.0,
+               mileage_boost = 1.2,
+               ),
+  6: Constants(remedy_discard_boost = 1.5,
+               discard_move_value_penalty = 0.001,
+               safety_horde_factor = 0.6,
+               attack_quality_mod_stop = 0.25,
+               attack_quality_mod_limit = 0.25,
+               dupe_penalty_factor = 3,
+               safe_trip_factor = 0.4,
+               aggressiveness = 1.0,
+               mileage_boost = 1.2,
+               ),
+}
 
 
 def cacheComputationForTurn(fn):
@@ -70,6 +121,7 @@ class MatthewgAI(AI):
     self.resetCardCount()
     self.resetTurnCache()
     self.gameState = None
+    self.constants = None
 
   def debug(self, msg, *args):
     if self.gameState and self.gameState.debug:
@@ -153,7 +205,7 @@ class MatthewgAI(AI):
     for player in team.playerNumbers:
       for _ in xrange(self.interestingRemedyDiscardsByPlayer[player][remedy]):
         remedyDiscards += 1
-        odds *= Constants.REMEDY_DISCARD_BOOST
+        odds *= self.constants.remedy_discard_boost
 
     self.debug("Team %d protection odds %r v. %s, based on %d safety %d remedy %d discards.",
                team.number,
@@ -168,6 +220,7 @@ class MatthewgAI(AI):
   def makeMove(self, gameState):
     self.resetTurnCache()
     self.gameState = gameState
+    self.constants = CONSTANTS_FOR_PLAYERCOUNT[self.playerCount()]
     try:
       moves = self.gameState.validMoves
       discardCards = [move.card
@@ -199,7 +252,7 @@ class MatthewgAI(AI):
     if move.type == Move.DISCARD:
       cardValue = self.cardValue(card, discardIdx, discardCards)
       # TODO: Factor in expected value of replacement card.
-      return (1 - cardValue) * Constants.DISCARD_MOVE_VALUE_PENALTY
+      return (1 - cardValue) * self.constants.discard_move_value_penalty
 
     # TODO: Factor in "safe trip" cost of playing 200km,
     # "shutout" cost of failing to play an attack,
@@ -214,7 +267,7 @@ class MatthewgAI(AI):
       mileage = Cards.cardToMileage(card)
 
       if mileage == 200 and self.gameState.us.twoHundredsPlayed == 0:
-        safeTripFactor = Constants.SAFE_TRIP_FACTOR
+        safeTripFactor = self.constants.safe_trip_factor
       else:
         safeTripFactor = 1.0
 
@@ -232,7 +285,7 @@ class MatthewgAI(AI):
       # If we need a remedy to move, and we have that remedy, it's a rather strong play!
       return 1.0
     elif cardType == Cards.SAFETY:
-      return Constants.SAFETY_HORDE_FACTOR
+      return self.constants.safety_horde_factor
     elif cardType == Cards.ATTACK:
       target = self.gameState.teamNumberToTeam(move.target)
       if card == Cards.ATTACK_SPEED_LIMIT:
@@ -249,9 +302,9 @@ class MatthewgAI(AI):
       # TODO: Balance these, and also factor in chance opponent can get protection in the future.
       # And also factor in trip distance remaining for speed limit.
       if card == Cards.ATTACK_STOP:
-        attackQualityModifier = Constants.ATTACK_QUALITY_MOD_STOP
+        attackQualityModifier = self.constants.attack_quality_mod_stop
       elif card == Cards.ATTACK_SPEED_LIMIT:
-        attackQualityModifier = Constants.ATTACK_QUALITY_MOD_LIMIT
+        attackQualityModifier = self.constants.attack_quality_mod_limit
       else:
         attackQualityModifier = 1.0
 
@@ -260,7 +313,7 @@ class MatthewgAI(AI):
               self.chanceTeamWillWin(target) *
               self.chanceTeamWillCompleteTrip(target) *
               attackQualityModifier *
-              Constants.AGGRESSIVENESS)
+              self.constants.aggressiveness)
 
 
     # than playing them outright, so that we can save safeties for coup fourre.
@@ -279,7 +332,7 @@ class MatthewgAI(AI):
     # (600/5000=12% done).  And the trip is currently at 900km (100km remaining), and playing this mileage
     # card will get us to 1000k (100% of remaining distance.)  Value of playing this move is:
     #   1.00 * 0.12
-    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us) * Constants.MILEAGE_BOOST
+    ret = tripRemainingMileagePercentConsumed * self.valueOfPoints(400 + 200, self.gameState.us) * self.constants.mileage_boost
     self.debug("Value of %dkm: %r, since it covers %r of remaining trip distance.",
                Cards.cardToMileage(card),
                ret,
@@ -317,7 +370,7 @@ class MatthewgAI(AI):
     # nearer to 1 (to reduce the severity of the penalty), and then
     # invert again to cancel out the inversion.
     dupeFrac = 1/numDuplicates
-    dupePenaltyFactor = Constants.DUPE_PENALTY_FACTOR
+    dupePenaltyFactor = self.constants.dupe_penalty_factor
     dupeCoefficient = 1-(1-dupeFrac)/dupePenaltyFactor
 
     cardType = Cards.cardToType(card)
@@ -632,7 +685,7 @@ class MatthewgAI(AI):
   def deckExhaustionTurnsLeft(self):
     ret = math.ceil(self.gameState.cardsLeft / self.playerCount())
     self.debug("%d turns until deck exhaustion (%d players, %d cards left)",
-               ret, playerCount, self.gameState.cardsLeft)
+               ret, self.playerCount(), self.gameState.cardsLeft)
     return ret
 
   @cacheComputationForTurn
