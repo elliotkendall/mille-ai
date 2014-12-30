@@ -72,7 +72,7 @@ class PerfConstants(object):
   def tunePerfConstants(klass):
     # Keep going until we've spent 60s doing monte-carlo simulations.
     # Then, based on that, set constants so that each run takes 1s.
-    perfConstants = klass(0.75, 10, 100)
+    perfConstants = klass(0.4, 10, 100)
     ai = MatthewgAI(perfConstants = perfConstants)
     gameState = GameState()
     ai.cardsUnseen = {Cards.MILEAGE_100: 20}
