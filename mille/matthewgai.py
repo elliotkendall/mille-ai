@@ -19,7 +19,9 @@ from mille.ai import AI
 from mille.cards import Cards
 from mille.deck import Deck
 from mille.game import Game
+from mille.gamestate import GameState
 from mille.move import Move
+from mille.team import Team
 
 import collections
 import csv
@@ -27,10 +29,72 @@ import math
 import os
 import random
 import re
+import time
+
+
+class PerfConstants(object):
+  def __init__(self, monteCarloTripThreshold, monteCarloTurnThreshold, monteCarloIterations):
+    self.monteCarloTripThreshold = monteCarloTripThreshold
+    self.monteCarloTurnThreshold = monteCarloTurnThreshold
+    self.monteCarloIterations = monteCarloIterations
+
+  @classmethod
+  def perfConstantFile(klass):
+    return os.path.join(os.path.dirname(__file__),
+                        "matthewgai_perfconstants")
+
+  def savePerfConstants(self):
+    with open(self.perfConstantFile(), "w") as f:
+      csvWriter = csv.writer(f):
+      csvWriter.writerow(self.toTuple())
+
+  @classmethod
+  def loadPerfConstants(klass):
+    with open(klass.perfConstantFile(), "r") as f:
+      csvReader = csv.reader(f)
+      (perfConstantTuple, ) = csvReader
+      if perfConstantTuple == ("0", "0", "0"):
+        return klass.tunePerfConstants()
+      else:
+        return klass(float(perfConstantTuple[0]),
+                     int(perfConstantTuple[1]),
+                     int(perfConstantTuple[2]))
+
+  def toTuple(self):
+    return (self.monteCarloTripThreshold,
+            self.monteCarloTurnThreshold,
+            self.monteCarloIterations)
+
+  @classmethod
+  def tunePerfConstants(klass):
+    # Keep going until we've spent 60s doing monte-carlo simulations.
+    # Then, based on that, set constants so that each run takes 1s.
+    perfConstants = klass(0.75, 10, 100)
+    ai = MatthewgAI(perfConstants = perfConstants)
+    gameState = GameState()
+    ai.cardsUnseen = {Cards.MILEAGE_100: 20}
+    gameState.teams = [Team(number = 0), Team(number = 1)]
+    gameState.us = gameState.teams[0]
+    gameState.opponents = [gameState.teams[1]]
+    for i in xrange(len(gameState.teams)) :
+      gameState.teams[i].playerNumbers = [i]
+
+    ai.gameStarted(gameState)
+    ai.gameState = gameState
+    timeToStop = time.time() + 60
+    iterationsCompleted = 0
+    while time.time() < timeToStop:
+      ai.resetTurnCache()
+      ai.monteCarloMileageSimulation()
+      iterationsCompleted += 1
+    perfConstants.monteCarloIterations = max(int(iterationsCompleted / 60), 50)
+    perfConstants.savePerfConstants()
+    return perfConstants
 
 
 class Constants(object):
   DEBUG = False
+  SAVE_POPULATION = True
 
   @classmethod
   def debug(klass, msg, *args):
@@ -45,6 +109,8 @@ class Constants(object):
 
   @classmethod
   def savePopulation(klass, playerCount, population):
+    if not klass.SAVE_POPULATION:
+      return
     with open(klass.populationFile(playerCount), "w") as f:
       csvWriter = csv.writer(f)
       for (member, fitness) in population:
@@ -218,10 +284,14 @@ class MatthewgAI(AI):
   constants = None
   constants_playercount = None
 
-  def __init__(self):
+  def __init__(self, perfConstants = None):
     self.resetCardCount()
     self.resetTurnCache()
     self.gameState = None
+    if perfConstants:
+      self.perfConstants = perfConstants
+    else:
+      self.perfConstants = PerfConstants.loadPerfConstants()
 
   def debug(self, msg, *args):
     if self.gameState and self.gameState.debug:
@@ -675,7 +745,7 @@ class MatthewgAI(AI):
     # Returns a list of many (turns elapsed, team 0 trip mileage remaining, team 1 trip remaining, ...)
     # TODO: Assumes extension.
     results = []
-    for _ in xrange(100):
+    for _ in xrange(self.perfConstants.monteCarloIterations):
       needMileage = dict((team.number, team.mileage) for team in self.gameState.teams)
       moving = dict((team.number, team.moving) for team in self.gameState.teams)
       needRemedy = dict((team.number, team.needRemedy) for team in self.gameState.teams)
@@ -791,8 +861,8 @@ class MatthewgAI(AI):
   @cacheComputationForTurn
   def useMonteCarloSimulation(self):
     # This is expensive, and it's more expensive and less useful early in a trip.
-    return (self.maxTripPctDone() > 0.75 or
-            self.deckExhaustionTurnsLeft() < 10)
+    return (self.maxTripPctDone() > self.perfConstants.monteCarloTripThreshold or
+            self.deckExhaustionTurnsLeft() < self.perfConstants.monteCarloMoveThreshold)
 
 
   def handEnded2(self, handScoresByTeam, totalScoresByTeam):

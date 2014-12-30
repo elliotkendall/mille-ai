@@ -3,6 +3,7 @@ import time
 from sys import exit
 from mille.matthewgai import Constants
 from mille.matthewgai import MatthewgAI
+from mille.matthewgai import PerfConstants
 from mille.sampleais import *
 from mille.game import Game
 from mille.cards import Cards
@@ -10,10 +11,12 @@ from mille.cards import Cards
 # Begin configurable parameters
 
 competitors = [MatthewgAI, BasicAI]
-numPlayers = 2
+numPlayers = 6
 games = 10000
 debug = False
-Constants.DEBUG = True
+Constants.DEBUG = False
+PerfConstants.SAVE_POPULATION = True
+
 
 # End configurable parameters
 
