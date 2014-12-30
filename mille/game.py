@@ -370,6 +370,7 @@ class Game:
     state.target = self.target
     state.cardsLeft = self.deck.cardsLeft()
     state.playerCount = len(self.players)
+    state.playerNumber = player.number
     return state
 
   def draw(self, player, count = 1):
