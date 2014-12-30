@@ -45,20 +45,23 @@ class PerfConstants(object):
 
   def savePerfConstants(self):
     with open(self.perfConstantFile(), "w") as f:
-      csvWriter = csv.writer(f):
+      csvWriter = csv.writer(f)
       csvWriter.writerow(self.toTuple())
 
   @classmethod
   def loadPerfConstants(klass):
     with open(klass.perfConstantFile(), "r") as f:
       csvReader = csv.reader(f)
-      (perfConstantTuple, ) = csvReader
-      if perfConstantTuple == ("0", "0", "0"):
+      (perfConstantRow, ) = csvReader
+      perfConstantTuple = (float(perfConstantRow[0]),
+                           int(perfConstantRow[1]),
+                           int(perfConstantRow[2]))
+      if perfConstantTuple == (0.0, 0, 0):
         return klass.tunePerfConstants()
       else:
-        return klass(float(perfConstantTuple[0]),
-                     int(perfConstantTuple[1]),
-                     int(perfConstantTuple[2]))
+        return klass(perfConstantTuple[0],
+                     perfConstantTuple[1],
+                     perfConstantTuple[2])
 
   def toTuple(self):
     return (self.monteCarloTripThreshold,
@@ -73,6 +76,7 @@ class PerfConstants(object):
     ai = MatthewgAI(perfConstants = perfConstants)
     gameState = GameState()
     ai.cardsUnseen = {Cards.MILEAGE_100: 20}
+    gameState.playerNumber = 0
     gameState.teams = [Team(number = 0), Team(number = 1)]
     gameState.us = gameState.teams[0]
     gameState.opponents = [gameState.teams[1]]
@@ -862,7 +866,7 @@ class MatthewgAI(AI):
   def useMonteCarloSimulation(self):
     # This is expensive, and it's more expensive and less useful early in a trip.
     return (self.maxTripPctDone() > self.perfConstants.monteCarloTripThreshold or
-            self.deckExhaustionTurnsLeft() < self.perfConstants.monteCarloMoveThreshold)
+            self.deckExhaustionTurnsLeft() < self.perfConstants.monteCarloTurnThreshold)
 
 
   def handEnded2(self, handScoresByTeam, totalScoresByTeam):
