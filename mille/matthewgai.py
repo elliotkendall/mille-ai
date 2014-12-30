@@ -264,6 +264,8 @@ class MatthewgAI(AI):
     return "".join(ret)
 
   def playerPlayed(self, player, move):
+    if player == self._usPlayerNumber:
+      return
     self.cardSeen(move.card)
     if Cards.cardToType(move.card) == Cards.REMEDY and move.card != Cards.REMEDY_GO:
       if move.type == Move.DISCARD:
@@ -307,6 +309,7 @@ class MatthewgAI(AI):
 
   def gameStarted(self, gameState):
     # Data we want available during hand score evaluation, when gamestate is absent.
+    self._usPlayerNumber = gameState.playerNumber
     self._usTeamNumber = gameState.us.number
     self._playerCount = gameState.playerCount
 
