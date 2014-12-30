@@ -18,6 +18,7 @@ class GameState:
     self.debug = False
     self.teams = []
     self.playerCount = 0
+    self.playerNumber = -1
 
   def teamNumberToTeam(self, teamNumber):
     return self.teams[teamNumber]
