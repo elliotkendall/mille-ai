@@ -12,39 +12,47 @@ class Game:
   # How many points to win a game, as opposed to a single hand
   pointsToWin = 5000
 
-  def __init__(self, AIs, debug = False):
+  def __init__(self, AIs, debug = False, teams = None, players = None):
     self.teams = []
     self.players = []
     self.debug = debug
-    
-    # Seat players in a random order
-    #shuffle(AIs)
-    
-    # Set up teams
-    count = len(AIs)
-    if count == 2 or count == 4:
-      teams = 2
-    elif count == 3 or count == 6:
-      teams = 3
+    self.transcriptWriter = None
+
+    if not (bool(AIs) ^ bool(teams and players)):
+      raise Exception("Must specify one and only one of (AIs), (teams, players).")
+
+    if AIs is None:
+      self.teams = teams
+      self.players = players
     else:
-      raise ValueError('Invalid number of players')
-
-    for i in range(teams):
-      self.teams.append(Team(i))
-
-    team = 0
-    for playerNumber in range(count):
-      self.teams[team].playerNumbers.append(playerNumber)
-      self.players.append(Player())
-      self.players[playerNumber].number = playerNumber
-      self.players[playerNumber].teamNumber = team
-      if team == 0:
-        self.players[playerNumber].ai = AIs[0].__class__()
+      # Seat players in a random order
+      #shuffle(AIs)
+    
+      # Set up teams
+      count = len(AIs)
+      if count == 2 or count == 4:
+        teams = 2
+      elif count == 3 or count == 6:
+        teams = 3
       else:
-        self.players[playerNumber].ai = AIs[1].__class__()
-      team = team + 1
-      if team >= teams:
-        team = 0
+        raise ValueError('Invalid number of players')
+
+      for i in range(teams):
+        self.teams.append(Team(i))
+
+      team = 0
+      for playerNumber in range(count):
+        self.teams[team].playerNumbers.append(playerNumber)
+        self.players.append(Player())
+        self.players[playerNumber].number = playerNumber
+        self.players[playerNumber].teamNumber = team
+        if team == 0:
+          self.players[playerNumber].ai = AIs[0].__class__()
+        else:
+          self.players[playerNumber].ai = AIs[1].__class__()
+        team = team + 1
+        if team >= teams:
+          team = 0
 
     # Some initialization logic lives in its own routine so it can be called
     # separately if we're going to re-use this object for a new game
@@ -88,6 +96,9 @@ class Game:
     for player in self.players:
       player.ai.gameStarted(self.makeState(player))
 
+    if self.transcriptWriter:
+      self.transcriptWriter.writeGameStart()
+
     while not gameOver:
       # Run a single hand
       self.playHand()
@@ -104,6 +115,9 @@ class Game:
           gameOver = True
     if self.debug:
       print 'Team ' + str(winningteam) + ' wins'
+
+    if self.transcriptWriter:
+      self.transcriptWriter.writeGameEnd()
 
     # Return the winners indexed by name
     ret = {}
@@ -126,6 +140,9 @@ class Game:
       player.hand = self.draw(player, 6)
       player.hand = self.deck.draw(player, 6)
 
+    if self.transcriptWriter:
+      self.transcriptWriter.writeHandStart()
+
     currentPlayerNumber = 0
     # Normally this is currentPlayerNumber + 1, but in the case of a coup
     # fourre it gets changed to give the player another turn
@@ -135,8 +152,10 @@ class Game:
       currentPlayer = self.players[currentPlayerNumber]
       currentTeam = self.teams[currentPlayer.teamNumber]
 
+      drewCardThisMove = None
       try:
-        currentPlayer.hand.append(self.deck.draw(currentPlayer))
+        drewCardThisMove = self.draw(currentPlayer)
+        currentPlayer.hand.append(drewCardThisMove)
       except IndexError:
         self.delayedAction = True
 
@@ -179,92 +198,13 @@ class Game:
       sanitizedPlayer.ai = None
       self.notifyPlayers(sanitizedPlayer, move)
 
-      # Handle moves
-      if move.type == Move.PLAY:
-        card = move.card
-        type = Cards.cardToType(card)
-        if type == Cards.MILEAGE:
-          currentTeam.mileage += Cards.cardToMileage(card)
-          currentTeam.mileagePile.append(card)
-          if card == Cards.MILEAGE_200:
-            currentTeam.safeTrip = False
-            currentTeam.twoHundredsPlayed += 1
-          if currentTeam.mileage == self.target:
-            tempState = self.makeState(currentPlayer)
-            if self.extensionPossible and currentPlayer.ai.goForExtension(tempState):
-              if self.debug:
-                print 'Player ' + str(currentPlayerNumber) + ' goes for the extension'
-              self.extension = True
-              self.extensionPossible = False
-              self.target = 1000
-            else:
-              if self.debug:
-                print 'Race complete'
-              self.winner = currentPlayer.teamNumber
-              self.tripComplete = True
-              break
-        elif type == Cards.REMEDY:
-          currentTeam.battlePile.append(card)
-          if card == Cards.REMEDY_END_OF_LIMIT:
-            currentTeam.speedLimit = False
-          else:
-            currentTeam.needRemedy = Cards.REMEDY_GO
-          if (card == Cards.REMEDY_GO
-           or Cards.SAFETY_RIGHT_OF_WAY in currentTeam.safeties):
-            currentTeam.needRemedy = None
-            currentTeam.moving = True
-        elif type == Cards.ATTACK:
-          targetTeam = self.teams[(move.target)]
-
-          # Check for coup fourre
-          neededSafety = Cards.attackToSafety(card)
-          coupFourrePlayerNumber = -1
-          for targetPlayerNumber in targetTeam.playerNumbers:
-            targetPlayer = self.players[targetPlayerNumber]
-            if neededSafety in targetPlayer.hand:
-              tempState = self.makeState(targetPlayer)
-              if targetPlayer.ai.playCoupFourre(card, tempState):
-                coupFourrePlayerNumber = targetPlayerNumber
-              # There's only one of each safety, so if we found it, we don't
-              # need to keep looking
-              break
-
-          if coupFourrePlayerNumber == -1:
-            # The attack resolves
-            targetTeam.battlePile.append(card)
-            if card == Cards.ATTACK_SPEED_LIMIT:
-              self.teams[move.target].speedLimit = True
-            else:
-              self.teams[move.target].moving = False
-              self.teams[move.target].needRemedy = Cards.attackToRemedy(card)
-          else:
-            # Coup fourre
-            self.playSafety(targetTeam, neededSafety)
-            nextPlayerNumber = coupFourrePlayerNumber
-            # Remove the safety from the player's hand
-            del self.players[coupFourrePlayerNumber].hand[self.players[coupFourrePlayerNumber].hand.index(neededSafety)]
-            # Draw an extra card to replace the one just played
-            try:
-              player = self.players[coupFourrePlayerNumber]
-              player.hand.append(self.deck.draw(player))
-            except IndexError:
-              pass
-            targetTeam.coupFourres += 1
-            cfMove = Move(Move.PLAY, neededSafety, None, True)
-            if self.debug:
-              print self.players[nextPlayerNumber],
-              print cfMove
-            cfPlayer = copy(self.players[nextPlayerNumber])
-            cfPlayer.hand = []
-            cfPlayer.ai = None
-            self.notifyPlayers(cfPlayer, cfMove)
-        elif type == Cards.SAFETY:
-          self.playSafety(currentTeam, card)
-          nextPlayerNumber = currentPlayerNumber
-        else:
-          raise ValueError('Unknown card type!')
-      elif move.type == Move.DISCARD:
-        self.discardPile.append(move.card)
+      oldTarget = self.target
+      self.handleMove(currentPlayer, currentTeam, move)
+      if self.transcriptWriter:
+        extensionWasDeclared = self.target > oldTarget
+        self.transcriptWriter.writeMove(currentPlayer.number, drewCardThisMove, move, extensionWasDeclared)
+      if self.tripComplete:
+        break
 
       # Remove the card from the player's hand
       del currentPlayer.hand[currentPlayer.hand.index(move.card)]
@@ -284,6 +224,12 @@ class Game:
     if self.debug:
       print 'Hand complete'
 
+    if self.transcriptWriter:
+      self.transcriptWriter.writeHandEnd()
+
+    self.computeHandScores()
+
+  def computeHandScores(self):
     # Look for a shut out
     teamsWithMileage = 0
     for team in self.teams:
@@ -331,8 +277,107 @@ class Game:
 
     # Notify the players that the hand is over
     for player in self.players:
-      player.ai.handEnded(scoreSummary)
-      player.ai.handEnded2(handScoresByTeam, totalScoresByTeam)
+      if player.ai:
+        player.ai.handEnded(scoreSummary)
+        player.ai.handEnded2(handScoresByTeam, totalScoresByTeam)
+
+  def handleMove(self, currentPlayer, currentTeam, move, forceExtension = False):
+    currentPlayerNumber = currentPlayer.number
+
+    # Handle moves
+    if move.type == Move.PLAY:
+      card = move.card
+      type = Cards.cardToType(card)
+      if type == Cards.MILEAGE:
+        currentTeam.mileage += Cards.cardToMileage(card)
+        currentTeam.mileagePile.append(card)
+        if card == Cards.MILEAGE_200:
+          currentTeam.safeTrip = False
+          currentTeam.twoHundredsPlayed += 1
+        if currentTeam.mileage == self.target:
+          tempState = self.makeState(currentPlayer)
+          if self.extensionPossible and (forceExtension or
+                                         currentPlayer.ai.goForExtension(tempState)):
+            if self.debug:
+              print 'Player ' + str(currentPlayerNumber) + ' goes for the extension'
+            self.extension = True
+            self.extensionPossible = False
+            self.target = 1000
+          else:
+            if self.debug:
+              print 'Race complete'
+            self.winner = currentPlayer.teamNumber
+            self.tripComplete = True
+            return
+      elif type == Cards.REMEDY:
+        currentTeam.battlePile.append(card)
+        if card == Cards.REMEDY_END_OF_LIMIT:
+          currentTeam.speedLimit = False
+        else:
+          currentTeam.needRemedy = Cards.REMEDY_GO
+        if (card == Cards.REMEDY_GO
+            or Cards.SAFETY_RIGHT_OF_WAY in currentTeam.safeties):
+          currentTeam.needRemedy = None
+          currentTeam.moving = True
+      elif type == Cards.ATTACK:
+        targetTeam = self.teams[(move.target)]
+
+        # Check for coup fourre
+        neededSafety = Cards.attackToSafety(card)
+        coupFourrePlayerNumber = -1
+        for targetPlayerNumber in targetTeam.playerNumbers:
+          targetPlayer = self.players[targetPlayerNumber]
+          if neededSafety in targetPlayer.hand:
+            tempState = self.makeState(targetPlayer)
+            if targetPlayer.ai and targetPlayer.ai.playCoupFourre(card, tempState):
+              coupFourrePlayerNumber = targetPlayerNumber
+            # There's only one of each safety, so if we found it, we don't
+            # need to keep looking
+            break
+
+        if coupFourrePlayerNumber == -1:
+          # The attack resolves
+          targetTeam.battlePile.append(card)
+          if card == Cards.ATTACK_SPEED_LIMIT:
+            self.teams[move.target].speedLimit = True
+          else:
+            self.teams[move.target].moving = False
+            self.teams[move.target].needRemedy = Cards.attackToRemedy(card)
+        else:
+          # Coup fourre
+          self.playSafety(targetTeam, neededSafety)
+          nextPlayerNumber = coupFourrePlayerNumber
+          # Remove the safety from the player's hand
+          del self.players[coupFourrePlayerNumber].hand[self.players[coupFourrePlayerNumber].hand.index(neededSafety)]
+          # Draw an extra card to replace the one just played
+          try:
+            player = self.players[coupFourrePlayerNumber]
+            cfCard = self.draw(player)
+            player.hand.append(cfCard)
+          except IndexError:
+            cfCard = None
+            self.delayedAction = True
+          targetTeam.coupFourres += 1
+          cfMove = Move(Move.PLAY, neededSafety, None, True)
+          if self.debug:
+            print self.players[nextPlayerNumber],
+            print cfMove
+          cfPlayer = copy(self.players[nextPlayerNumber])
+          cfPlayer.hand = []
+          cfPlayer.ai = None
+          self.notifyPlayers(cfPlayer, cfMove)
+          if self.transcriptWriter:
+            self.transcriptWriter.writeMove(cfPlayer.number,
+                                            cfCard,
+                                            cfMove,
+                                            False)
+      elif type == Cards.SAFETY:
+        self.playSafety(currentTeam, card)
+        nextPlayerNumber = currentPlayerNumber
+      else:
+        raise ValueError('Unknown card type!')
+    elif move.type == Move.DISCARD:
+      self.discardPile.append(move.card)
 
   def notifyPlayers(self, movingPlayer, move):
     for player in self.players:
