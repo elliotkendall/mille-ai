@@ -171,6 +171,7 @@ class TranscriptReader(object):
       teams.append(team)
 
     self.game = Game(None, teams = teams, players = players, debug = debug)
+    self.gameStartFn(self.game, playerNames)
     return True
 
   def _readNextHandStart(self):
