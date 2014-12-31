@@ -143,6 +143,9 @@ class Game:
     if self.transcriptWriter:
       self.transcriptWriter.writeHandStart()
 
+    if self.transcriptWriter:
+      self.transcriptWriter.writeHandStart()
+
     currentPlayerNumber = 0
     # Normally this is currentPlayerNumber + 1, but in the case of a coup
     # fourre it gets changed to give the player another turn
