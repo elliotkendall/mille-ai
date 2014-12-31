@@ -25,38 +25,41 @@ class Game:
       self.teams = teams
       self.players = players
     else:
-      # Seat players in a random order
-      #shuffle(AIs)
-    
-      # Set up teams
-      count = len(AIs)
-      if count == 2 or count == 4:
-        teams = 2
-      elif count == 3 or count == 6:
-        teams = 3
-      else:
-        raise ValueError('Invalid number of players')
-
-      for i in range(teams):
-        self.teams.append(Team(i))
-
-      team = 0
-      for playerNumber in range(count):
-        self.teams[team].playerNumbers.append(playerNumber)
-        self.players.append(Player())
-        self.players[playerNumber].number = playerNumber
-        self.players[playerNumber].teamNumber = team
-        if team == 0:
-          self.players[playerNumber].ai = AIs[0].__class__()
-        else:
-          self.players[playerNumber].ai = AIs[1].__class__()
-        team = team + 1
-        if team >= teams:
-          team = 0
+      self.generateTeams(AIs)
 
     # Some initialization logic lives in its own routine so it can be called
     # separately if we're going to re-use this object for a new game
     self.reset()
+
+  def generateTeams(self, AIs):
+    # Seat players in a random order
+    shuffle(AIs)
+    
+    # Set up teams
+    count = len(AIs)
+    if count == 2 or count == 4:
+      teams = 2
+    elif count == 3 or count == 6:
+      teams = 3
+    else:
+      raise ValueError('Invalid number of players')
+
+    for i in range(teams):
+      self.teams.append(Team(i))
+
+    team = 0
+    for playerNumber in range(count):
+      self.teams[team].playerNumbers.append(playerNumber)
+      self.players.append(Player())
+      self.players[playerNumber].number = playerNumber
+      self.players[playerNumber].teamNumber = team
+      if team == 0:
+        self.players[playerNumber].ai = AIs[0].__class__()
+      else:
+        self.players[playerNumber].ai = AIs[1].__class__()
+      team = team + 1
+      if team >= teams:
+        team = 0
 
   # Prepare this object for a new game
   def reset(self):
@@ -138,10 +141,6 @@ class Game:
     # Deal hands
     for player in self.players:
       player.hand = self.draw(player, 6)
-      player.hand = self.deck.draw(player, 6)
-
-    if self.transcriptWriter:
-      self.transcriptWriter.writeHandStart()
 
     if self.transcriptWriter:
       self.transcriptWriter.writeHandStart()
@@ -418,7 +417,6 @@ class Game:
     state.target = self.target
     state.cardsLeft = self.deck.cardsLeft()
     state.playerCount = len(self.players)
-    state.playerNumber = player.number
     return state
 
   def draw(self, player, count = 1):

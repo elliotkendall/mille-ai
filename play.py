@@ -1,9 +1,5 @@
 #!/usr/bin/env python
-import time
 from sys import exit, stdout
-from mille.matthewgai import Constants
-from mille.matthewgai import MatthewgAI
-from mille.matthewgai import PerfConstants
 from mille.sampleais import *
 from mille.game import Game
 from mille.cards import Cards
@@ -11,16 +7,15 @@ from mille.transcript import TranscriptReader, TranscriptWriter
 
 # Begin configurable parameters
 
-competitors = [MatthewgAI, BasicAI]
+competitors = [BasicAI, ManualAI]
 numPlayers = 2
-games = 100
+games = 1
 debug = False
-Constants.DEBUG = False
-PerfConstants.SAVE_POPULATION = False
 
-#readTranscript = None
-readTranscript = "/tmp/millegame"
-writeTranscript = "/tmp/millegame"
+readTranscript = None
+writeTranscript = None
+#readTranscript = "/tmp/millegame"
+#writeTranscript = "/tmp/millegame"
 
 # End configurable parameters
 
@@ -48,10 +43,8 @@ for i in range(numPlayers):
     competitor = 0
 
 scores = {}
-gamesPlayed = 0
-startTime = time.time()
 transcriptWriter = None
-for _ in xrange(games):
+for i in range(games):
   g = Game(players, debug)
   if writeTranscript:
     transcriptWriter = TranscriptWriter(writeTranscript, g)
@@ -60,7 +53,5 @@ for _ in xrange(games):
     if not scores.has_key(winner):
       scores[winner] = 0
     scores[winner] += 1
-  gamesPlayed += 1
-  print "Played %d games in %d seconds." % (gamesPlayed, int(time.time() - startTime))
 
 print scores
